@@ -1,0 +1,150 @@
+@import "tailwindcss";
+
+@theme inline {
+  /* SprintForge Design Tokens — sf- prefix matches React class names */
+  --color-sf-bg-primary: #F7F7F5;
+  --color-sf-bg-secondary: #ECEDEE;
+  --color-sf-bg-dark: #171719;
+  --color-sf-text-primary: #2E3034;
+  --color-sf-text-secondary: #55575c;
+  --color-sf-text-tertiary: #8a8c91;
+  --color-sf-accent: #E34A32;
+  --color-sf-accent-hover: #C93A24;
+  --color-sf-surface: #F4F5F5;
+  --color-sf-border: rgba(0, 0, 0, 0.05);
+
+  /* Accent variants */
+  --color-sf-accent-50: #fef2f0;
+  --color-sf-accent-100: #fde5e0;
+  --color-sf-accent-200: #f9ccc2;
+  --color-sf-accent-300: #f5ad9a;
+  --color-sf-accent-400: #ef7a6a;
+  --color-sf-accent-500: #E34A32;
+  --color-sf-accent-600: #C93A24;
+  --color-sf-accent-700: #a82e1d;
+  --color-sf-accent-800: #8a2718;
+  --color-sf-accent-900: #732215;
+  --color-sf-accent-950: #42110a;
+
+  /* Font families */
+  --font-sans: var(--font-inter);
+  --font-serif-accent: var(--font-instrument-serif);
+  --font-mono: var(--font-geist-mono);
+
+  /* Shadows */
+  --shadow-sf-card: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 14px 30px -18px rgba(35, 36, 39, 0.25);
+  --shadow-sf-card-hover: 0 24px 44px -18px rgba(35, 36, 39, 0.3);
+  --shadow-sf-button: 0 1px 0 rgba(255, 255, 255, 0.25) inset, 0 14px 28px -12px rgba(23, 23, 25, 0.75);
+  --shadow-sf-accent-glow: 0 14px 36px -12px rgba(227, 74, 50, 0.55);
+
+  /* Border radius */
+  --radius-sf: 0.75rem;
+}
+
+/* Map font variable names that Tailwind theme picks up */
+:root {
+  --font-inter: 'Inter', var(--font-sans);
+  --font-instrument-serif: 'Instrument Serif', Georgia, serif;
+  --font-geist-mono: 'Geist Mono', ui-monospace, monospace;
+}
+
+/* Typography rules */
+h1,
+h2 {
+  letter-spacing: -0.02em;
+}
+
+.wchar {
+  font-variation-settings: "wght" 600;
+  transition: font-variation-settings 0.3s ease;
+}
+
+.wchar:hover {
+  font-variation-settings: "wght" 800;
+}
+
+/* Selection */
+::selection {
+  background-color: var(--color-sf-accent);
+  color: white;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+@keyframes marquee {
+  0% {
+    transform: translateX(0%);
+  }
+
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes float-up {
+  0% {
+    transform: translateY(100vh) scale(0.8);
+    opacity: 0;
+  }
+
+  20% {
+    opacity: 0.8;
+  }
+
+  80% {
+    opacity: 0.5;
+  }
+
+  100% {
+    transform: translateY(-20vh) scale(1.2);
+    opacity: 0;
+  }
+}
+
+@keyframes reveal-up {
+  0% {
+    opacity: 0;
+    transform: translateY(1rem);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes drift-x {
+
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  50% {
+    transform: translateX(20px);
+  }
+}
+
+body {
+  background-color: var(--color-sf-bg-primary);
+  color: var(--color-sf-text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

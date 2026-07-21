@@ -1,0 +1,85 @@
+name: Krypta Security Scan
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to scan (optional)'
+        required: false
+        default: 'main'
+
+jobs:
+  security-scan:
+    name: Krypta AI Security Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Determine branch
+        id: branch
+        run: |
+          if [ -n "${{ github.event.inputs.branch }}" ]; then
+            echo "branch=${{ github.event.inputs.branch }}" >> $GITHUB_OUTPUT
+          else
+            echo "branch=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run Krypta Scan
+        uses: actions/github-script@v7
+        env:
+          KRYPTA_API_URL: ${{ secrets.KRYPTA_API_URL }}
+          KRYPTA_REPOSITORY_ID: ${{ secrets.KRYPTA_REPOSITORY_ID }}
+        with:
+          script: |
+            const branch = '${{ steps.branch.outputs.branch }}';
+            const apiUrl = process.env.KRYPTA_API_URL;
+            const repoId = process.env.KRYPTA_REPOSITORY_ID;
+
+            if (!apiUrl || !repoId) {
+              console.log('⚠️  KRYPTA_API_URL or KRYPTA_REPOSITORY_ID not configured. Skipping scan.');
+              core.setOutput('scan_triggered', false);
+              return;
+            }
+
+            try {
+              console.log('🔍 Triggering Krypta scan on branch:', branch);
+              const response = await fetch(apiUrl + '/api/scans/trigger', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ repositoryId: repoId, branch }),
+              });
+
+              const data = await response.json();
+
+              if (data.scanId) {
+                console.log('✅ Scan completed! Scan ID:', data.scanId);
+                core.setOutput('scan_id', data.scanId);
+
+                if (data.vulnerabilities > 0) {
+                  console.log(`🚨 Found ${data.vulnerabilities} vulnerability(ies)!`);
+                  core.setOutput('vulnerability_count', data.vulnerabilities);
+                  core.setFailed(`Krypta found ${data.vulnerabilities} vulnerability(ies). Check Krypta dashboard for details.`);
+                } else {
+                  console.log('✅ No vulnerabilities found!');
+                  core.setOutput('vulnerability_count', 0);
+                }
+              } else {
+                console.log('⚠️  Scan failed:', data.error);
+                core.setOutput('scan_triggered', false);
+              }
+            } catch (error) {
+              console.error('❌ Scan error:', error.message);
+              core.setOutput('scan_triggered', false);
+            }
+
+      - name: Scan Summary
+        if: always()
+        run: |
+          echo "## Krypta Security Scan Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch:** \`${{ steps.branch.outputs.branch }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
