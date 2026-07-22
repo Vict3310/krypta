@@ -204,14 +204,7 @@ export async function POST(req: Request) {
 
     const [owner, repoName] = repo.full_name.split("/");
 
-    // Get repo contents (tree endpoint)
-    const { data: tree } = await octokit.rest.repos.getCommitTree({
-      owner,
-      repo: repoName,
-      tree_sha: "", // Will use HEAD
-    });
-
-    // Alternative: get contents from HEAD
+    // Get HEAD commit SHA from branch ref
     const { data: branchRef } = await octokit.rest.git.getRef({
       owner,
       repo: repoName,
@@ -221,7 +214,7 @@ export async function POST(req: Request) {
     const commitSha = (branchRef.object as any).sha;
     await supabase.from("scans").update({ commit_sha: commitSha, branch: repo.default_branch }).eq("id", scan.id);
 
-    // Get tree
+    // Get recursive tree of all files
     const { data: treeData } = await octokit.rest.git.getTree({
       owner,
       repo: repoName,
