@@ -54,6 +54,7 @@ export type Vulnerability = {
   pr_url: string | null;
   status: "open" | "fixed" | "dismissed" | "snoozed";
   snoozed_until: string | null;
+  line?: number;
   updated_at?: string;
   created_at: string;
 };
