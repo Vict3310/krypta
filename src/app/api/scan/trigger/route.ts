@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createServiceRoleClient } from "@/utils/supabase/service";
 import { createClient } from "@/utils/supabase/server";
 import { Octokit } from "octokit";
 import { createSign } from "node:crypto";
@@ -160,6 +161,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
+  // Use service role client for DB operations (bypasses RLS)
+  const db = createServiceRoleClient();
+
   try {
     const { repositoryId } = await req.json();
 
@@ -168,7 +172,7 @@ export async function POST(req: Request) {
     }
 
     // Get the repository
-    const { data: repo, error: repoError } = await supabase
+    const { data: repo, error: repoError } = await db
       .from("repositories")
       .select("*")
       .eq("id", repositoryId)
@@ -182,7 +186,7 @@ export async function POST(req: Request) {
     console.log("[Scan] Starting scan for:", repo.full_name);
 
     // Create scan record
-    const { data: scan, error: scanError } = await supabase
+    const { data: scan, error: scanError } = await db
       .from("scans")
       .insert({
         repository_id: repo.id,
@@ -196,7 +200,7 @@ export async function POST(req: Request) {
     }
 
     // Update to scanning
-    await supabase.from("scans").update({ status: "scanning" }).eq("id", scan.id);
+    await db.from("scans").update({ status: "scanning" }).eq("id", scan.id);
 
     // Get GitHub token
     const githubToken = await getGitHubAppToken();
@@ -212,7 +216,7 @@ export async function POST(req: Request) {
     });
 
     const commitSha = (branchRef.object as any).sha;
-    await supabase.from("scans").update({ commit_sha: commitSha, branch: repo.default_branch }).eq("id", scan.id);
+    await db.from("scans").update({ commit_sha: commitSha, branch: repo.default_branch }).eq("id", scan.id);
 
     // Get recursive tree of all files
     const { data: treeData } = await octokit.rest.git.getTree({
@@ -274,7 +278,7 @@ export async function POST(req: Request) {
     // Store vulnerabilities
     if (totalFindings > 0) {
       const allFindings = Object.values(findingsPerFile).flat();
-      await supabase.from("vulnerabilities").insert(
+      await db.from("vulnerabilities").insert(
         allFindings.map((f: any) => ({
           scan_id: scan.id,
           file_path: f.filePath,
@@ -288,7 +292,7 @@ export async function POST(req: Request) {
     }
 
     // Update scan status
-    await supabase.from("scans").update({
+    await db.from("scans").update({
       status: totalFindings > 0 ? "vulnerable" : "clean",
       completed_at: new Date().toISOString(),
     }).eq("id", scan.id);
