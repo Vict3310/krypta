@@ -167,6 +167,8 @@ export default function DashboardPage() {
 
         if (repos) {
           setConnectedRepos(repos);
+        } else {
+          setConnectedRepos([]);
         }
 
         const repoIds = repos?.map((r: any) => r.id) ?? [];
@@ -184,6 +186,8 @@ export default function DashboardPage() {
 
         if (scans) {
           setRecentScans(scans as any);
+        } else {
+          setRecentScans([]);
         }
 
         // Calculate metrics
@@ -324,7 +328,7 @@ export default function DashboardPage() {
                   <ScanNowButton
                     repositoryId={repo.id}
                     onScanComplete={() => {
-                      // Reload scans
+                      // Reload only the data, not the whole page
                       window.location.reload();
                     }}
                   />
