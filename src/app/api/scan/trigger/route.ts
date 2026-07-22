@@ -186,6 +186,7 @@ export async function POST(req: Request) {
     console.log("[Scan] Starting scan for:", repo.full_name);
 
     // Create scan record
+    console.log("[Scan] Creating scan record...");
     const { data: scan, error: scanError } = await db
       .from("scans")
       .insert({
@@ -196,14 +197,20 @@ export async function POST(req: Request) {
       .single();
 
     if (scanError || !scan) {
+      console.error("[Scan] Failed to create scan record:", scanError);
       return NextResponse.json({ error: "Failed to create scan record" }, { status: 500 });
     }
 
+    console.log("[Scan] Scan record created:", scan.id);
+
     // Update to scanning
+    console.log("[Scan] Updating status to scanning...");
     await db.from("scans").update({ status: "scanning" }).eq("id", scan.id);
 
     // Get GitHub token
+    console.log("[Scan] Getting GitHub App token...");
     const githubToken = await getGitHubAppToken();
+    console.log("[Scan] GitHub App token received");
     const octokit = new Octokit({ auth: githubToken });
 
     const [owner, repoName] = repo.full_name.split("/");
@@ -228,6 +235,12 @@ export async function POST(req: Request) {
 
     const files = (treeData as any)?.tree?.filter((item: any) => item.type === "blob") || [];
     console.log("[Scan] Found", files.length, "files to scan");
+
+    if (files.length === 0) {
+      console.error("[Scan] No files found in repository tree");
+      await db.from("scans").update({ status: "clean", completed_at: new Date().toISOString() }).eq("id", scan.id);
+      return NextResponse.json({ message: "Repository is empty or has no code files", scanId: scan.id, filesScanned: 0, vulnerabilities: 0 });
+    }
 
     let totalFindings = 0;
     const findingsPerFile: Record<string, any[]> = {};
@@ -306,7 +319,8 @@ export async function POST(req: Request) {
       vulnerabilities: totalFindings,
     });
   } catch (error) {
-    console.error("[Scan] Error:", error);
+    console.error("[Scan] Error at step:", error);
+    console.error("[Scan] Stack:", (error as Error).stack);
     return NextResponse.json(
       { error: "Internal server error", details: (error as Error).message },
       { status: 500 }
