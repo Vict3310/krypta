@@ -32,24 +32,37 @@ export default function ScansPage() {
     async function loadScans() {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return;
+        if (!session) {
+          console.warn("[Scans] No session");
+          setLoading(false);
+          return;
+        }
 
         // Fetch user's repositories first
-        const { data: repos } = await supabase
+        const { data: repos, error: reposError } = await supabase
           .from("repositories")
           .select("id")
           .eq("user_id", session.user.id);
 
+        if (reposError) {
+          console.error("[Scans] Repos error:", reposError);
+          setScans([]);
+          setLoading(false);
+          return;
+        }
+
         if (!repos || repos.length === 0) {
+          console.warn("[Scans] No repos found for user");
           setScans([]);
           setLoading(false);
           return;
         }
 
         const repoIds = repos.map(r => r.id);
+        console.log("[Scans] Repo IDs:", repoIds);
 
         // Fetch scans with vulnerabilities for this user's repos
-        const { data: scansData } = await supabase
+        const { data: scansData, error: scansError } = await supabase
           .from("scans")
           .select(`
             *,
@@ -66,11 +79,15 @@ export default function ScansPage() {
           .order("triggered_at", { ascending: false })
           .limit(50);
 
-        if (scansData) {
-          setScans(scansData as any);
+        if (scansError) {
+          console.error("[Scans] Scans query error:", scansError);
+        } else {
+          console.log("[Scans] Loaded", (scansData as any)?.length ?? 0, "scans");
         }
+
+        setScans((scansData as any) ?? []);
       } catch (error) {
-        console.error("Failed to load scans:", error);
+        console.error("[Scans] Unexpected error:", error);
       } finally {
         setLoading(false);
       }
