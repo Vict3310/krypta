@@ -70,29 +70,43 @@ function ScanNowButton({ repositoryId, onScanComplete }: { repositoryId: string;
   const [result, setResult] = useState<string | null>(null);
 
   const handleScan = async () => {
+    console.log("[ScanNow] === Scan Now BUTTON CLICKED ===");
+    console.log("[ScanNow] repositoryId:", repositoryId);
+
     setScanning(true);
     setError(null);
     setResult(null);
+
+    const requestBody = JSON.stringify({ repositoryId });
+    console.log("[ScanNow] Request body:", requestBody);
+    console.log("[ScanNow] Calling /api/scan/trigger...");
 
     try {
       const res = await fetch("/api/scan/trigger", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ repositoryId }),
+        body: requestBody,
       });
 
+      console.log("[ScanNow] Response status:", res.status);
+      console.log("[ScanNow] Response OK:", res.ok);
+
       const data = await res.json();
+      console.log("[ScanNow] Response body:", JSON.stringify(data, null, 2));
 
       if (!res.ok) {
+        console.error("[ScanNow] Scan failed — HTTP error:", res.status, data);
         throw new Error(data.error || data.details || `HTTP ${res.status}`);
       }
 
+      console.log("[ScanNow] Scan initiated successfully:", data.message);
       setResult(data.message);
       setTimeout(() => {
+        console.log("[ScanNow] Reloading page...");
         onScanComplete();
       }, 2000);
     } catch (err) {
-      console.error("Scan failed:", err);
+      console.error("[ScanNow] Scan failed with exception:", err);
       setError((err as Error).message);
       setScanning(false);
     }
@@ -149,23 +163,29 @@ export default function DashboardPage() {
 
   useEffect(() => {
     async function loadData() {
+      console.log("[Dashboard] === PAGE LOAD STARTED ===");
       try {
         const supabase = createClient();
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        console.log("[Dashboard] Session loaded:", { userId: session?.user?.id, email: session?.user?.email, sessionError });
 
-        if (!session?.user) return;
+        if (!session?.user) {
+          console.warn("[Dashboard] No session, aborting");
+          return;
+        }
 
         const name = session.user.user_metadata?.full_name?.split(" ")[0] || session.user.email?.split("@")[0] || "there";
         setFirstName(name);
 
         // Fetch connected repositories
+        console.log("[Dashboard] Fetching repositories for user:", session.user.id);
         const { data: repos, error: reposError } = await supabase
           .from("repositories")
           .select("*")
           .eq("user_id", session.user.id);
-
+        console.log("[Dashboard] Repos result:", { count: repos?.length, reposError });
         if (reposError) {
-          console.error("Failed to load repos:", reposError);
+          console.error("[Dashboard] Repos error:", reposError);
         }
         if (repos) {
           setConnectedRepos(repos);
@@ -174,8 +194,10 @@ export default function DashboardPage() {
         }
 
         const repoIds = repos?.map((r: any) => r.id) ?? [];
+        console.log("[Dashboard] Repo IDs:", repoIds);
 
         // Fetch recent scans
+        console.log("[Dashboard] Fetching scans for repo IDs:", repoIds);
         const { data: scans, error: scansError } = await supabase
           .from("scans")
           .select(`
@@ -185,9 +207,9 @@ export default function DashboardPage() {
           .in("repository_id", repoIds)
           .order("triggered_at", { ascending: false })
           .limit(5);
-
+        console.log("[Dashboard] Scans result:", { count: scans?.length, scansError });
         if (scansError) {
-          console.error("Failed to load scans:", scansError);
+          console.error("[Dashboard] Scans error:", scansError);
         }
         if (scans) {
           setRecentScans(scans as any);
@@ -205,8 +227,9 @@ export default function DashboardPage() {
           fixedCount: 0,
         });
 
+        console.log("[Dashboard] === PAGE LOAD COMPLETE ===");
       } catch (error) {
-        console.error("Failed to load dashboard data:", error);
+        console.error("[Dashboard] Unexpected error:", error);
       } finally {
         setLoading(false);
       }
