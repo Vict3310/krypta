@@ -76,7 +76,15 @@ export default function NewRepositoryPage() {
           }
           const data = await res.json();
           console.log("[Page] GitHub API response:", data);
-          setRepos(data.repos);
+
+          // Map GitHub API fields to our interface
+          const mapped = (data.repos || []).map((r: any) => ({
+            githubRepoId: r.id,
+            name: r.full_name,
+            defaultBranch: r.default_branch,
+            isConnected: false,
+          }));
+          setRepos(mapped);
         }
       } catch (e) {
         console.error("[Page] Load error:", e);
