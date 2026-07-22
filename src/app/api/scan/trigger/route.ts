@@ -259,6 +259,7 @@ export async function POST(req: Request) {
       recursive: "true",
     });
 
+    const files = (treeData as any)?.tree?.filter((item: any) => item.type === "blob") || [];
     console.log("[Scan] Found", files.length, "files to scan");
 
     if (files.length === 0) {
