@@ -196,14 +196,11 @@ export default function DashboardPage() {
         const repoIds = repos?.map((r: any) => r.id) ?? [];
         console.log("[Dashboard] Repo IDs:", repoIds);
 
-        // Fetch recent scans
+        // Fetch recent scans (without repositories join — RLS blocks cross-table joins)
         console.log("[Dashboard] Fetching scans for repo IDs:", repoIds);
         const { data: scans, error: scansError } = await supabase
           .from("scans")
-          .select(`
-            *,
-            repositories (full_name)
-          `)
+          .select("*")
           .in("repository_id", repoIds)
           .order("triggered_at", { ascending: false })
           .limit(5);
@@ -212,7 +209,12 @@ export default function DashboardPage() {
           console.error("[Dashboard] Scans error:", scansError);
         }
         if (scans) {
-          setRecentScans(scans as any);
+          // Enrich with repo names (fetched separately above)
+          const repoMap = new Map(repos?.map((r: any) => [r.id, r.full_name]));
+          setRecentScans((scans as any[]).map((s: any) => ({
+            ...s,
+            repositories: { full_name: repoMap.get(s.repository_id) || "Unknown" },
+          })));
         } else {
           setRecentScans([]);
         }

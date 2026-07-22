@@ -61,7 +61,15 @@ export default function ScansPage() {
         const repoIds = repos.map(r => r.id);
         console.log("[Scans] Repo IDs:", repoIds);
 
-        // Fetch scans with vulnerabilities for this user's repos
+        // Build repo name map first (RLS blocks cross-table joins in select)
+        const { data: reposWithNames } = await supabase
+          .from("repositories")
+          .select("id, full_name")
+          .in("id", repoIds);
+        const repoMap = new Map(reposWithNames?.map((r: any) => [r.id, r.full_name]));
+
+        // Fetch scans with vulnerabilities (no cross-table join)
+        console.log("[Scans] Fetching scans and vulnerabilities...");
         const { data: scansData, error: scansError } = await supabase
           .from("scans")
           .select(`
@@ -72,8 +80,7 @@ export default function ScansPage() {
               plain_english_explanation,
               pr_url,
               status
-            ),
-            repositories (full_name)
+            )
           `)
           .in("repository_id", repoIds)
           .order("triggered_at", { ascending: false })
@@ -85,7 +92,11 @@ export default function ScansPage() {
           console.log("[Scans] Loaded", (scansData as any)?.length ?? 0, "scans");
         }
 
-        setScans((scansData as any) ?? []);
+        // Enrich scans with repo names
+        setScans((scansData as any)?.map((s: any) => ({
+          ...s,
+          repositories: { full_name: repoMap.get(s.repository_id) || "Unknown" },
+        })) ?? []);
       } catch (error) {
         console.error("[Scans] Unexpected error:", error);
       } finally {
