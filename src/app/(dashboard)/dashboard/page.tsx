@@ -1,11 +1,20 @@
-import { redirect } from "next/navigation";
-import { createClient } from "@/utils/supabase/server";
-import { getDashboardMetrics, getRecentScans } from "@/lib/db";
-import { TerminalWidget } from "@/components/TerminalWidget";
-import AnalyticsSection from "@/components/AnalyticsSection";
-import { Shield, GitBranch, CheckCircle2, AlertTriangle, Clock, ChevronRight } from "lucide-react";
+"use client";
+
+import { useEffect, useState } from "react";
+import { createClient } from "@/utils/supabase/client";
 import Link from "next/link";
-import type { Scan } from "@/lib/types";
+import {
+  Shield,
+  GitBranch,
+  CheckCircle2,
+  AlertTriangle,
+  Clock,
+  ChevronRight,
+  Play,
+  Loader2,
+  AlertCircle,
+} from "lucide-react";
+import type { Scan, Vulnerability } from "@/lib/types";
 
 function SeverityBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
@@ -22,18 +31,178 @@ function SeverityBadge({ status }: { status: string }) {
   );
 }
 
-export default async function DashboardPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+// Scan card component
+function ScanCard({ scan }: { scan: Scan & { repositories: { full_name: string } } }) {
+  return (
+    <Link
+      href={`/dashboard/scans/${scan.id}`}
+      className="flex items-center justify-between py-3 px-4 hover:bg-black/[0.02] transition-colors rounded-lg"
+    >
+      <div className="flex items-center gap-3">
+        <div className={`p-2 rounded-lg ${scan.status === "clean" ? "bg-emerald-50" : scan.status === "vulnerable" ? "bg-red-50" : "bg-amber-50"}`}>
+          {scan.status === "clean" ? (
+            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+          ) : scan.status === "vulnerable" ? (
+            <AlertTriangle className="h-4 w-4 text-red-600" />
+          ) : (
+            <Clock className="h-4 w-4 text-amber-600" />
+          )}
+        </div>
+        <div>
+          <span className="text-sm font-medium text-sf-text-primary block">
+            {scan.repositories?.full_name ?? "Unknown repo"}
+          </span>
+          <span className="text-xs text-sf-text-tertiary flex items-center gap-1 mt-0.5">
+            <Clock className="h-3 w-3" />
+            {new Date(scan.triggered_at).toLocaleString()}
+          </span>
+        </div>
+      </div>
+      <SeverityBadge status={scan.status} />
+    </Link>
+  );
+}
 
-  if (!user) redirect("/login");
+// Scan now button
+function ScanNowButton({ repositoryId, onScanComplete }: { repositoryId: string; onScanComplete: () => void }) {
+  const [scanning, setScanning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<string | null>(null);
 
-  const [metrics, recentScans] = await Promise.all([
-    getDashboardMetrics(user.id),
-    getRecentScans(user.id, 5),
-  ]);
+  const handleScan = async () => {
+    setScanning(true);
+    setError(null);
+    setResult(null);
 
-  const firstName = user.user_metadata?.full_name?.split(" ")[0] ?? user.email?.split("@")[0] ?? "there";
+    try {
+      const res = await fetch("/api/scan/trigger", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ repositoryId }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+
+      setResult(data.message);
+      onScanComplete();
+    } catch (err) {
+      console.error("Scan failed:", err);
+      setError((err as Error).message);
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  if (scanning) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-sf-text-secondary">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        <span>Scanning...</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <button
+        onClick={handleScan}
+        disabled={scanning}
+        className="inline-flex items-center gap-2 rounded-full bg-[#171719] px-4 py-2 text-sm font-medium text-white shadow-[0_1px_0_rgba(255,255,255,0.2)_inset,0_8px_18px_-10px_rgba(23,23,25,0.5)] transition-all hover:-translate-y-0.5 disabled:opacity-50"
+      >
+        <Play className="h-4 w-4" />
+        Scan Now
+      </button>
+
+      {error && (
+        <div className="flex items-center gap-1 text-xs text-red-600">
+          <AlertCircle className="h-3 w-3" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {result && (
+        <div className="flex items-center gap-1 text-xs text-emerald-600">
+          <CheckCircle2 className="h-3 w-3" />
+          <span>{result}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function DashboardPage() {
+  const [metrics, setMetrics] = useState({
+    totalScans: 0,
+    totalVulnerabilities: 0,
+    fixedCount: 0,
+    activeRepos: 0,
+  });
+  const [recentScans, setRecentScans] = useState<Array<Scan & { repositories: { full_name: string } }>>([]);
+  const [connectedRepos, setConnectedRepos] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [firstName, setFirstName] = useState("there");
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const supabase = createClient();
+        const { data: { session } } = await supabase.auth.getSession();
+
+        if (!session?.user) return;
+
+        const name = session.user.user_metadata?.full_name?.split(" ")[0] || session.user.email?.split("@")[0] || "there";
+        setFirstName(name);
+
+        // Fetch connected repositories
+        const { data: repos } = await supabase
+          .from("repositories")
+          .select("*")
+          .eq("user_id", session.user.id)
+          .order("created_at", { ascending: false });
+
+        if (repos) {
+          setConnectedRepos(repos);
+        }
+
+        // Fetch recent scans
+        const { data: scans } = await supabase
+          .from("scans")
+          .select(`
+            *,
+            repositories (full_name)
+          `)
+          .eq("repositories.user_id", session.user.id)
+          .order("triggered_at", { ascending: false })
+          .limit(5);
+
+        if (scans) {
+          setRecentScans(scans as any);
+        }
+
+        // Calculate metrics
+        const repoIds = repos?.map((r: any) => r.id) ?? [];
+        setMetrics({
+          activeRepos: repoIds.length,
+          totalScans: repoIds.length > 0
+            ? (await supabase.from("scans").select("id", { count: "exact" }).in("repository_id", repoIds)).count ?? 0
+            : 0,
+          totalVulnerabilities: 0,
+          fixedCount: 0,
+        });
+
+      } catch (error) {
+        console.error("Failed to load dashboard data:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadData();
+  }, []);
 
   const metricCards = [
     {
@@ -65,6 +234,14 @@ export default async function DashboardPage() {
       bgColor: "bg-blue-500/10",
     },
   ];
+
+  if (loading) {
+    return (
+      <main className="p-6 md:p-8 max-w-7xl mx-auto">
+        <div className="flex items-center justify-center h-64 text-sf-text-tertiary">Loading...</div>
+      </main>
+    );
+  }
 
   return (
     <main className="p-6 md:p-8 max-w-7xl mx-auto">
@@ -103,65 +280,84 @@ export default async function DashboardPage() {
         ))}
       </div>
 
-      {/* Security Analytics */}
+      {/* Connected Repositories */}
       <div className="mb-8">
-        <AnalyticsSection />
-      </div>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-semibold text-sf-text-primary">Connected Repositories</h2>
+          <Link href="/dashboard/repositories/new" className="text-xs text-sf-accent hover:underline flex items-center gap-1">
+            Manage repos
+            <ChevronRight className="h-3 w-3" />
+          </Link>
+        </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Scans */}
-        <div className="rounded-[28px] border border-black/5 bg-white shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_14px_30px_-18px_rgba(35,36,39,0.25)] overflow-hidden">
-          <div className="flex items-center justify-between border-b border-black/5 px-6 py-4">
-            <h2 className="font-semibold text-sf-text-primary">Recent Scans</h2>
-            <Link href="/dashboard/history" className="text-xs text-sf-accent hover:underline flex items-center gap-1">
-              View all
-              <ChevronRight className="h-3 w-3" />
+        {connectedRepos.length === 0 ? (
+          <div className="rounded-[28px] border border-black/5 bg-white p-12 text-center shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_14px_30px_-18px_rgba(35,36,39,0.25)]">
+            <GitBranch className="h-12 w-12 text-sf-text-tertiary/40 mx-auto mb-4" />
+            <p className="text-sf-text-primary font-medium mb-2">No repositories connected</p>
+            <p className="text-sm text-sf-text-secondary mb-6">Connect a GitHub repository to start security scanning.</p>
+            <Link
+              href="/dashboard/repositories/new"
+              className="inline-flex items-center gap-2 rounded-full bg-[#171719] text-white px-5 py-2.5 text-sm font-medium shadow-[0_1px_0_rgba(255,255,255,0.2)_inset,0_14px_28px_-12px_rgba(23,23,25,0.75)] transition-all hover:-translate-y-0.5"
+            >
+              <GitBranch className="h-4 w-4" />
+              Connect Repository
             </Link>
           </div>
-
-          {recentScans.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-              <Shield className="h-12 w-12 text-sf-text-tertiary/40 mb-4" />
-              <p className="text-sf-text-primary font-medium mb-2">No scans yet</p>
-              <p className="text-sm text-sf-text-secondary mb-6">Connect a repository to start automated security scanning.</p>
-              <Link
-                href="/dashboard/repositories/new"
-                className="rounded-full bg-[#171719] text-white px-5 py-2.5 text-sm font-medium shadow-[0_1px_0_rgba(255,255,255,0.2)_inset,0_14px_28px_-12px_rgba(23,23,25,0.75)] transition-all hover:-translate-y-0.5"
-              >
-                Connect Repository
-              </Link>
-            </div>
-          ) : (
+        ) : (
+          <div className="rounded-[28px] border border-black/5 bg-white shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_14px_30px_-18px_rgba(35,36,39,0.25)] overflow-hidden">
             <div className="divide-y divide-black/5">
-              {recentScans.map((scan) => (
-                <Link
-                  key={scan.id}
-                  href={`/dashboard/scans/${scan.id}`}
-                  className="flex items-center justify-between px-6 py-4 hover:bg-black/[0.02] transition-colors"
-                >
+              {connectedRepos.map((repo) => (
+                <div key={repo.id} className="flex items-center justify-between px-6 py-4">
                   <div className="flex items-center gap-3">
+                    <GitBranch className="h-5 w-5 text-sf-text-tertiary" />
                     <div>
                       <span className="text-sm font-medium text-sf-text-primary block">
-                        {(scan as Scan & { repositories: { full_name: string } }).repositories?.full_name ?? "Unknown repo"}
+                        {repo.full_name}
                       </span>
-                      <span className="text-xs text-sf-text-tertiary flex items-center gap-1 mt-0.5">
-                        <Clock className="h-3 w-3" />
-                        {new Date(scan.triggered_at).toLocaleString()}
+                      <span className="text-xs text-sf-text-tertiary">
+                        Branch: {repo.default_branch || "main"}
                       </span>
                     </div>
                   </div>
-                  <SeverityBadge status={scan.status} />
-                </Link>
+                  <ScanNowButton
+                    repositoryId={repo.id}
+                    onScanComplete={() => {
+                      // Reload scans
+                      window.location.reload();
+                    }}
+                  />
+                </div>
               ))}
             </div>
-          )}
+          </div>
+        )}
+      </div>
+
+      {/* Recent Scans */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-semibold text-sf-text-primary">Recent Scans</h2>
+          <Link href="/dashboard/scans" className="text-xs text-sf-accent hover:underline flex items-center gap-1">
+            View all
+            <ChevronRight className="h-3 w-3" />
+          </Link>
         </div>
 
-        {/* Live Activity Terminal */}
-        <div>
-          <h2 className="font-semibold text-sf-text-primary mb-4">Live Activity</h2>
-          <TerminalWidget />
-        </div>
+        {recentScans.length === 0 ? (
+          <div className="rounded-[28px] border border-black/5 bg-white p-12 text-center shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_14px_30px_-18px_rgba(35,36,39,0.25)]">
+            <Shield className="h-12 w-12 text-sf-text-tertiary/40 mx-auto mb-4" />
+            <p className="text-sf-text-primary font-medium mb-2">No scans yet</p>
+            <p className="text-sm text-sf-text-secondary mb-6">Click "Scan Now" on a repository to start security scanning.</p>
+          </div>
+        ) : (
+          <div className="rounded-[28px] border border-black/5 bg-white shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_14px_30px_-18px_rgba(35,36,39,0.25)] overflow-hidden">
+            <div className="divide-y divide-black/5">
+              {recentScans.map((scan) => (
+                <ScanCard key={scan.id} scan={scan as any} />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </main>
   );

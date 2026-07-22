@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { ArrowLeft, ShieldAlert, CheckCircle2, Zap, BellOff, X, Clock, GitPullRequest, Download } from "lucide-react";
+import { ArrowLeft, ShieldAlert, CheckCircle2, Clock, X } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/utils/supabase/client";
 import type { Scan, Vulnerability } from "@/lib/types";
@@ -18,7 +18,6 @@ export default function ScanDetailPage({ params }: { params: { id: string } }) {
   const [scan, setScan] = useState<Scan | null>(null);
   const [vulnerabilities, setVulnerabilities] = useState<Vulnerability[]>([]);
   const [selected, setSelected] = useState<Vulnerability | null>(null);
-  const [isFixing, setIsFixing] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -79,67 +78,6 @@ export default function ScanDetailPage({ params }: { params: { id: string } }) {
     };
   }, [params.id, selected?.id]);
 
-  const handleFix = async () => {
-    if (!selected || !scan) return;
-    setIsFixing(true);
-    try {
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
-
-      const { data: repo } = await supabase
-        .from("repositories")
-        .select("*")
-        .eq("id", scan.repository_id)
-        .single();
-
-      if (!repo) throw new Error("Repository not found");
-
-      const response = await fetch("/api/scans/fix", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          vulnerabilityId: selected.id,
-          filePath: selected.file_path,
-          vulnerabilityType: selected.vulnerability_type,
-          vulnerableCode: selected.vulnerable_code,
-          fixedCode: selected.fixed_code,
-          branch: (scan as any).branch || "main",
-        }),
-      });
-
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || "Failed to create fix");
-      }
-
-      const { prUrl } = await response.json();
-
-      await supabase
-        .from("vulnerabilities")
-        .update({ status: "fixed", pr_url: prUrl })
-        .eq("id", selected.id);
-
-      setVulnerabilities((prev) =>
-        prev.map((v) => (v.id === selected.id ? { ...v, status: "fixed", pr_url: prUrl } : v))
-      );
-      setSelected((prev) => (prev ? { ...prev, status: "fixed", pr_url: prUrl } : null));
-
-      toast.success("Fix applied!", {
-        description: prUrl
-          ? `A PR has been opened. ${prUrl}`
-          : "A PR has been opened on your repository.",
-      });
-    } catch (error) {
-      console.error("Fix error:", error);
-      toast.error("Failed to apply fix", {
-        description: error instanceof Error ? error.message : "Please try again.",
-      });
-    } finally {
-      setIsFixing(false);
-    }
-  };
-
   const handleDismiss = async (vuln: Vulnerability) => {
     const supabase = createClient();
     await supabase.from("vulnerabilities").update({ status: "dismissed" }).eq("id", vuln.id);
@@ -162,26 +100,6 @@ export default function ScanDetailPage({ params }: { params: { id: string } }) {
       prev.map((v) => (v.id === vuln.id ? { ...v, status: "snoozed" } : v))
     );
     toast("Snoozed for 30 days", { description: "You won't be reminded about this until then." });
-  };
-
-  const handleExport = async (format: "json" | "html") => {
-    try {
-      const response = await fetch(`/api/scans/${params.id}/export?format=${format}`);
-      if (!response.ok) throw new Error("Export failed");
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `krypta-report-${params.id}.${format === "json" ? "json" : "html"}`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-    } catch (error) {
-      toast.error("Failed to export report", {
-        description: error instanceof Error ? error.message : "Please try again.",
-      });
-    }
   };
 
   const severityStyle: Record<string, string> = {
@@ -208,15 +126,6 @@ export default function ScanDetailPage({ params }: { params: { id: string } }) {
         timestamp: vuln.updated_at,
         label: getStatusLabel(vuln.status),
         icon: getStatusIcon(vuln.status),
-      });
-    }
-
-    if (vuln.pr_url) {
-      events.push({
-        status: "pr",
-        timestamp: vuln.updated_at || vuln.created_at,
-        label: "PR Opened",
-        icon: GitPullRequest,
       });
     }
 
@@ -264,11 +173,11 @@ export default function ScanDetailPage({ params }: { params: { id: string } }) {
   return (
     <main className="p-6 md:p-8 max-w-7xl mx-auto">
       <Link
-        href="/dashboard/history"
+        href="/dashboard/scans"
         className="inline-flex items-center text-sm text-sf-text-secondary hover:text-sf-text-primary transition-colors mb-6 mt-2"
       >
         <ArrowLeft className="h-4 w-4 mr-2" />
-        Back to History
+        Back to Scans
       </Link>
 
       <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8 gap-4">
@@ -282,46 +191,20 @@ export default function ScanDetailPage({ params }: { params: { id: string } }) {
               : `${vulnerabilities.length} Vulnerabilit${vulnerabilities.length === 1 ? "y" : "ies"} Found`}
           </h1>
         </div>
-        {selected && selected.status === "open" && (
-          <button
-            onClick={handleFix}
-            disabled={isFixing}
-            className="inline-flex items-center gap-2 rounded-full bg-[#171719] px-6 py-3 text-sm font-semibold text-white shadow-[0_1px_0_rgba(255,255,255,0.2)_inset,0_14px_28px_-12px_rgba(23,23,25,0.75)] transition-all hover:-translate-y-0.5 disabled:opacity-50"
-          >
-            {isFixing ? (
-              <>
-                <span className="h-4 w-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
-                Applying...
-              </>
-            ) : (
-              <>
-                <Zap className="h-4 w-4" />
-                Execute Fix
-              </>
-            )}
-          </button>
-        )}
-        {selected && selected.status === "fixed" && (
-          <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 border border-emerald-200 px-5 py-2.5 text-sm font-semibold text-emerald-700">
-            <CheckCircle2 className="h-5 w-5" />
-            Fixed
-          </div>
-        )}
-        <div className="flex gap-2">
-          <button
-            onClick={() => handleExport("json")}
-            className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-medium text-sf-text-secondary shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_8px_18px_-10px_rgba(35,36,39,0.3)] transition-all hover:bg-black/5"
-          >
-            <Download className="h-3.5 w-3.5" />
-            JSON
-          </button>
-          <button
-            onClick={() => handleExport("html")}
-            className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-medium text-sf-text-secondary shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_8px_18px_-10px_rgba(35,36,39,0.3)] transition-all hover:bg-black/5"
-          >
-            <Download className="h-3.5 w-3.5" />
-            PDF
-          </button>
+        <div className="flex items-center gap-3">
+          {scan.status === "vulnerable" && (
+            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-red-50 text-red-700 border border-red-200">
+              Vulnerable
+            </span>
+          )}
+          {scan.status === "clean" && (
+            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+              Clean
+            </span>
+          )}
+          <span className="text-sm text-sf-text-tertiary">
+            {new Date(scan.triggered_at).toLocaleString()}
+          </span>
         </div>
       </header>
 
@@ -362,6 +245,7 @@ export default function ScanDetailPage({ params }: { params: { id: string } }) {
                 </p>
                 <p className="text-xs text-sf-text-tertiary mt-0.5 truncate">
                   {v.file_path ?? "Unknown file"}
+                  {v.line ? `:${v.line}` : ""}
                 </p>
               </button>
             ))}
@@ -382,7 +266,7 @@ export default function ScanDetailPage({ params }: { params: { id: string } }) {
                         onClick={() => handleSnooze(selected)}
                         className="inline-flex items-center gap-1 rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs font-medium text-sf-text-secondary shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_8px_18px_-10px_rgba(35,36,39,0.3)] transition-all hover:bg-black/5"
                       >
-                        <BellOff className="h-3 w-3" />
+                        <Clock className="h-3 w-3" />
                         Snooze
                       </button>
                       <button
@@ -401,6 +285,7 @@ export default function ScanDetailPage({ params }: { params: { id: string } }) {
                 {selected.file_path && (
                   <p className="text-xs text-sf-text-tertiary mt-3 font-mono bg-black/[0.02] px-3 py-1.5 rounded-lg inline-block">
                     {selected.file_path}
+                    {selected.line ? `:${selected.line}` : ""}
                   </p>
                 )}
               </div>
@@ -431,7 +316,7 @@ export default function ScanDetailPage({ params }: { params: { id: string } }) {
                 </div>
               </div>
 
-              {(selected.vulnerable_code || selected.fixed_code) && (
+              {selected.vulnerable_code && (
                 <div className="rounded-[28px] border border-black/5 bg-[#171719] overflow-hidden shadow-[0_1px_0_rgba(255,255,255,0.08)_inset,0_20px_40px_-20px_rgba(23,23,25,0.8)]">
                   <div className="flex items-center gap-2 border-b border-white/5 px-4 py-3">
                     <div className="h-2.5 w-2.5 rounded-full bg-red-500" />
@@ -442,16 +327,9 @@ export default function ScanDetailPage({ params }: { params: { id: string } }) {
                     </span>
                   </div>
                   <div className="p-4 overflow-x-auto text-sm text-white/75 font-mono space-y-2">
-                    {selected.vulnerable_code && selected.status !== "fixed" && (
-                      <pre className="bg-red-500/10 border-l-4 border-red-500 -mx-4 px-4 py-2 text-red-300 whitespace-pre-wrap">
-                        {selected.vulnerable_code}
-                      </pre>
-                    )}
-                    {selected.fixed_code && selected.status === "fixed" && (
-                      <pre className="bg-emerald-500/10 border-l-4 border-emerald-500 -mx-4 px-4 py-2 text-emerald-300 whitespace-pre-wrap">
-                        {selected.fixed_code}
-                      </pre>
-                    )}
+                    <pre className="bg-red-500/10 border-l-4 border-red-500 -mx-4 px-4 py-2 text-red-300 whitespace-pre-wrap">
+                      {selected.vulnerable_code}
+                    </pre>
                   </div>
                 </div>
               )}
