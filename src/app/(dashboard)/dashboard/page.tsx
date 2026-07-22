@@ -159,12 +159,14 @@ export default function DashboardPage() {
         setFirstName(name);
 
         // Fetch connected repositories
-        const { data: repos } = await supabase
+        const { data: repos, error: reposError } = await supabase
           .from("repositories")
           .select("*")
-          .eq("user_id", session.user.id)
-          .order("created_at", { ascending: false });
+          .eq("user_id", session.user.id);
 
+        if (reposError) {
+          console.error("Failed to load repos:", reposError);
+        }
         if (repos) {
           setConnectedRepos(repos);
         } else {
@@ -174,7 +176,7 @@ export default function DashboardPage() {
         const repoIds = repos?.map((r: any) => r.id) ?? [];
 
         // Fetch recent scans
-        const { data: scans } = await supabase
+        const { data: scans, error: scansError } = await supabase
           .from("scans")
           .select(`
             *,
@@ -184,6 +186,9 @@ export default function DashboardPage() {
           .order("triggered_at", { ascending: false })
           .limit(5);
 
+        if (scansError) {
+          console.error("Failed to load scans:", scansError);
+        }
         if (scans) {
           setRecentScans(scans as any);
         } else {
