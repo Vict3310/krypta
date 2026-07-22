@@ -71,7 +71,8 @@ export default function ScanDetailPage({ params }: { params: Promise<{ id: strin
   // Real-time Supabase subscription for live scan updates
   useEffect(() => {
     let cancelled = false;
-    let channel: ReturnType<typeof createClient>['channel'] | null = null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let channel: any = null;
     const supabase = createClient();
 
     (async () => {
