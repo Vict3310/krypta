@@ -14,7 +14,7 @@ interface VulnerabilityTimelineEvent {
   icon: typeof CheckCircle2;
 }
 
-export default function ScanDetailPage({ params }: { params: { id: string } }) {
+export default function ScanDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const [scan, setScan] = useState<Scan | null>(null);
   const [vulnerabilities, setVulnerabilities] = useState<Vulnerability[]>([]);
   const [selected, setSelected] = useState<Vulnerability | null>(null);
@@ -22,21 +22,28 @@ export default function ScanDetailPage({ params }: { params: { id: string } }) {
 
   useEffect(() => {
     const load = async () => {
+      const { id } = await params;
       const supabase = createClient();
+
+      console.log("[ScanDetail] Loading scan ID:", id);
 
       // Fetch scans without cross-table join (RLS blocks repositories in join)
       const { data: scanData } = await supabase
         .from("scans")
         .select("*")
-        .eq("id", params.id)
+        .eq("id", id)
         .single();
+
+      console.log("[ScanDetail] Scan data:", scanData);
 
       // Fetch repo name separately
       const { data: repos } = await supabase
         .from("repositories")
         .select("id, full_name")
-        .in("id", [scanData?.repository_id])
+        .eq("id", scanData?.repository_id)
         .single();
+
+      console.log("[ScanDetail] Repo data:", repos);
 
       // Merge repo name into scan
       const scanWithRepo = scanData ? {
@@ -49,58 +56,65 @@ export default function ScanDetailPage({ params }: { params: { id: string } }) {
       const { data: vulnData } = await supabase
         .from("vulnerabilities")
         .select("*")
-        .eq("scan_id", params.id)
+        .eq("scan_id", id)
         .order("severity", { ascending: false });
+
+      console.log("[ScanDetail] Vulnerabilities:", (vulnData as any)?.length);
 
       setVulnerabilities((vulnData as Vulnerability[]) ?? []);
       if (vulnData && vulnData.length > 0) setSelected(vulnData[0] as Vulnerability);
       setLoading(false);
     };
     load();
-  }, [params.id]);
+  }, [params]);
 
   // Real-time Supabase subscription for live scan updates
   useEffect(() => {
-    const supabase = createClient();
-    const channel = supabase
-      .channel(`scan-${params.id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "vulnerabilities",
-          filter: `scan_id=eq.${params.id}`,
-        },
-        (payload) => {
-          const updated = payload.new as Vulnerability;
-          setVulnerabilities((prev) =>
-            prev.map((v) => (v.id === updated.id ? { ...v, ...updated } : v))
-          );
-          if (selected?.id === updated.id) {
-            setSelected((prev) => (prev ? { ...prev, ...updated } : null));
+    const initChannel = async () => {
+      const { id } = await params;
+      const supabase = createClient();
+      const channel = supabase
+        .channel(`scan-${id}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "vulnerabilities",
+            filter: `scan_id=eq.${id}`,
+          },
+          (payload) => {
+            const updated = payload.new as Vulnerability;
+            setVulnerabilities((prev) =>
+              prev.map((v) => (v.id === updated.id ? { ...v, ...updated } : v))
+            );
+            if (selected?.id === updated.id) {
+              setSelected((prev) => (prev ? { ...prev, ...updated } : null));
+            }
           }
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "scans",
-          filter: `id=eq.${params.id}`,
-        },
-        (payload) => {
-          const updatedScan = payload.new as Scan;
-          setScan((prev) => (prev ? { ...prev, ...updatedScan } : null));
-        }
-      )
-      .subscribe();
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "scans",
+            filter: `id=eq.${id}`,
+          },
+          (payload) => {
+            const updatedScan = payload.new as Scan;
+            setScan((prev) => (prev ? { ...prev, ...updatedScan } : null));
+          }
+        )
+        .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
+      return () => {
+        supabase.removeChannel(channel);
+      };
     };
-  }, [params.id, selected?.id]);
+    const cleanup = initChannel();
+    return () => cleanup.then(c => c?.());
+  }, [params, selected?.id]);
 
   const handleDismiss = async (vuln: Vulnerability) => {
     const supabase = createClient();
