@@ -46,3 +46,4 @@ Krypta scans your codebase for vulnerabilities using AI, provides plain-English 
 - CI/CD integration
 - Compliance reporting (SOC2, HIPAA, ISO27001)
 
+# deploy trigger - trigger rebuild
