@@ -264,7 +264,7 @@ export async function POST(req: Request) {
 
     if (files.length === 0) {
       console.log("[Scan] No files to scan, marking as clean");
-      await db.from("scans").update({ status: "clean", completed_at: new Date().toISOString() }).eq("id", scan.id);
+      await db.from("scans").update({ status: "clean" }).eq("id", scan.id);
       return NextResponse.json({ message: "Repository is empty or has no code files", scanId: scan.id, filesScanned: 0, vulnerabilities: 0 });
     }
 
@@ -334,33 +334,57 @@ export async function POST(req: Request) {
     console.log(`[Scan] All files processed. Total findings: ${totalFindings}`);
 
     // Store vulnerabilities
-    if (totalFindings > 0) {
-      console.log(`[Scan] Storing ${Object.values(findingsPerFile).flat().length} vulnerabilities...`);
-      const allFindings = Object.values(findingsPerFile).flat();
-      await db.from("vulnerabilities").insert(
-        allFindings.map((f: any) => ({
-          scan_id: scan.id,
-          file_path: f.filePath,
-          vulnerability_type: f.vulnerabilityType,
-          severity: f.severity,
-          plain_english_explanation: f.description,
-          vulnerable_code: f.code,
-          status: "open",
-        }))
-      );
-      console.log(`[Scan] Vulnerabilities stored`);
-    } else {
-      console.log(`[Scan] No vulnerabilities to store`);
+    try {
+      if (totalFindings > 0) {
+        console.log(`[Scan] Storing ${Object.values(findingsPerFile).flat().length} vulnerabilities...`);
+        const allFindings = Object.values(findingsPerFile).flat();
+        const { data: vulnResult, error: vulnError } = await db.from("vulnerabilities").insert(
+          allFindings.map((f: any) => ({
+            scan_id: scan.id,
+            file_path: f.filePath,
+            vulnerability_type: f.vulnerabilityType,
+            severity: f.severity,
+            plain_english_explanation: f.description,
+            vulnerable_code: f.code,
+            line: f.line,
+            status: "open",
+          }))
+        ).select();
+        console.log(`[Scan] Vulnerability insert result:`, JSON.stringify({ count: vulnResult?.length, error: vulnError }));
+        if (vulnError) {
+          console.error(`[Scan] Vulnerability insert error:`, vulnError.message);
+        } else {
+          console.log(`[Scan] ${vulnResult?.length} vulnerabilities stored`);
+        }
+      } else {
+        console.log(`[Scan] No vulnerabilities to store`);
+      }
+    } catch (vulnError: any) {
+      console.error(`[Scan] Error storing vulnerabilities:`, vulnError.message);
+      // Continue anyway — we'll update status below
     }
 
     // Update scan status
     const finalStatus = totalFindings > 0 ? "vulnerable" : "clean";
     console.log(`[Scan] Updating scan to ${finalStatus} status...`);
-    await db.from("scans").update({
-      status: finalStatus,
-      completed_at: new Date().toISOString(),
-    }).eq("id", scan.id);
-    console.log(`[Scan] Scan ${scan.id} completed with ${totalFindings} vulnerabilities`);
+    console.log(`[Scan] Update target: id=${scan.id}, repo_id=${repo.id}`);
+    try {
+      const { data: updateResult, error: statusError } = await db
+        .from("scans")
+        .update({ status: finalStatus })
+        .eq("id", scan.id)
+        .select()
+        .single();
+      console.log(`[Scan] Status update result:`, JSON.stringify({ data: updateResult, error: statusError }));
+      if (statusError) {
+        console.error(`[Scan] Status update error:`, statusError.message);
+      } else {
+        console.log(`[Scan] Scan ${scan.id} updated to ${finalStatus} (${totalFindings} findings)`);
+      }
+    } catch (statusError: any) {
+      console.error(`[Scan] Error updating scan status:`, statusError.message);
+      console.error(`[Scan] Error details:`, JSON.stringify(statusError, null, 2));
+    }
 
     return NextResponse.json({
       message: totalFindings > 0

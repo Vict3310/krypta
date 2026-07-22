@@ -169,6 +169,8 @@ export default function DashboardPage() {
           setConnectedRepos(repos);
         }
 
+        const repoIds = repos?.map((r: any) => r.id) ?? [];
+
         // Fetch recent scans
         const { data: scans } = await supabase
           .from("scans")
@@ -176,7 +178,7 @@ export default function DashboardPage() {
             *,
             repositories (full_name)
           `)
-          .eq("repositories.user_id", session.user.id)
+          .in("repository_id", repoIds)
           .order("triggered_at", { ascending: false })
           .limit(5);
 
@@ -185,7 +187,6 @@ export default function DashboardPage() {
         }
 
         // Calculate metrics
-        const repoIds = repos?.map((r: any) => r.id) ?? [];
         setMetrics({
           activeRepos: repoIds.length,
           totalScans: repoIds.length > 0
