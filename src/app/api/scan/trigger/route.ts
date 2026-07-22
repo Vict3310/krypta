@@ -259,31 +259,38 @@ export async function POST(req: Request) {
       recursive: "true",
     });
 
-    const files = (treeData as any)?.tree?.filter((item: any) => item.type === "blob") || [];
     console.log("[Scan] Found", files.length, "files to scan");
 
     if (files.length === 0) {
-      console.error("[Scan] No files found in repository tree");
+      console.log("[Scan] No files to scan, marking as clean");
       await db.from("scans").update({ status: "clean", completed_at: new Date().toISOString() }).eq("id", scan.id);
       return NextResponse.json({ message: "Repository is empty or has no code files", scanId: scan.id, filesScanned: 0, vulnerabilities: 0 });
     }
 
     let totalFindings = 0;
     const findingsPerFile: Record<string, any[]> = {};
+    let processedFiles = 0;
+    let scannedFiles = 0;
 
-    // Scan files in batches (concurrent, but not too many at once)
-    const batchSize = 10;
+    // Scan files in batches (1 at a time to avoid GitHub rate limiting)
+    const batchSize = 5;
     for (let i = 0; i < files.length; i += batchSize) {
       const batch = files.slice(i, i + batchSize);
-      const promises = batch.map(async (file: any) => {
-        if (!file.path) return [];
+      processedFiles += batch.length;
+      console.log(`[Scan] Processing batch ${Math.floor(i / batchSize) + 1}: files ${i + 1}-${Math.min(i + batchSize, files.length)}/${files.length}`);
+
+      const batchResults: any[] = [];
+      for (const file of batch) {
+        if (!file.path) continue;
 
         // Skip binary and non-code files
         const ext = file.path.split(".").pop()?.toLowerCase() || "";
         const codeExtensions = ["js", "jsx", "ts", "tsx", "py", "java", "go", "rs", "rb", "php", "cs", "cpp", "c", "h", "hpp", "kt", "scala", "sh", "bash", "yml", "yaml", "json", "xml", "html", "md", "toml", "cfg", "ini", "env", "dockerfile", "gitignore", "env"];
-        if (!codeExtensions.includes(ext)) return [];
+        if (!codeExtensions.includes(ext)) continue;
 
+        scannedFiles++;
         try {
+          console.log(`[Scan] Fetching file: ${file.path}`);
           const { data: fileData } = await octokit.rest.repos.getContent({
             owner,
             repo: repoName,
@@ -291,31 +298,43 @@ export async function POST(req: Request) {
             ref: commitSha,
           });
 
-          if ((fileData as any)?.type !== "file") return [];
+          if ((fileData as any)?.type !== "file") {
+            console.log(`[Scan] Skipped non-file: ${file.path}`);
+            continue;
+          }
 
           const content = Buffer.from((fileData as any).content, "base64").toString("utf-8");
+          console.log(`[Scan] Scanning file: ${file.path} (${content.length} bytes)`);
 
-          if (content.length > 50000) return []; // Skip large files
+          if (content.length > 50000) {
+            console.log(`[Scan] Skipped large file: ${file.path}`);
+            continue;
+          }
 
           const findings = await scanFileContent(content, file.path);
-          return findings;
-        } catch {
-          return [];
+          console.log(`[Scan] Found ${findings.length} issues in ${file.path}`);
+          batchResults.push({ file, findings });
+        } catch (err: any) {
+          console.error(`[Scan] Error fetching ${file.path}:`, err.message);
+        }
+      }
+
+      // Accumulate findings
+      batchResults.forEach(({ file, findings }: any) => {
+        if (findings.length > 0) {
+          findingsPerFile[file.path] = findings;
+          totalFindings += findings.length;
         }
       });
 
-      const results = await Promise.all(promises);
-      results.forEach((batchFindings, idx) => {
-        if (batchFindings.length > 0) {
-          const file = batch[idx];
-          findingsPerFile[file.path] = batchFindings;
-          totalFindings += batchFindings.length;
-        }
-      });
+      console.log(`[Scan] Batch complete. Total findings so far: ${totalFindings}`);
     }
+
+    console.log(`[Scan] All files processed. Total findings: ${totalFindings}`);
 
     // Store vulnerabilities
     if (totalFindings > 0) {
+      console.log(`[Scan] Storing ${Object.values(findingsPerFile).flat().length} vulnerabilities...`);
       const allFindings = Object.values(findingsPerFile).flat();
       await db.from("vulnerabilities").insert(
         allFindings.map((f: any) => ({
@@ -328,13 +347,19 @@ export async function POST(req: Request) {
           status: "open",
         }))
       );
+      console.log(`[Scan] Vulnerabilities stored`);
+    } else {
+      console.log(`[Scan] No vulnerabilities to store`);
     }
 
     // Update scan status
+    const finalStatus = totalFindings > 0 ? "vulnerable" : "clean";
+    console.log(`[Scan] Updating scan to ${finalStatus} status...`);
     await db.from("scans").update({
-      status: totalFindings > 0 ? "vulnerable" : "clean",
+      status: finalStatus,
       completed_at: new Date().toISOString(),
     }).eq("id", scan.id);
+    console.log(`[Scan] Scan ${scan.id} completed with ${totalFindings} vulnerabilities`);
 
     return NextResponse.json({
       message: totalFindings > 0

@@ -84,15 +84,16 @@ function ScanNowButton({ repositoryId, onScanComplete }: { repositoryId: string;
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || `HTTP ${res.status}`);
+        throw new Error(data.error || data.details || `HTTP ${res.status}`);
       }
 
       setResult(data.message);
-      onScanComplete();
+      setTimeout(() => {
+        onScanComplete();
+      }, 2000);
     } catch (err) {
       console.error("Scan failed:", err);
       setError((err as Error).message);
-    } finally {
       setScanning(false);
     }
   };
