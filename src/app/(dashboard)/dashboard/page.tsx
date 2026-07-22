@@ -164,19 +164,25 @@ export default function DashboardPage() {
   useEffect(() => {
     async function loadData() {
       console.log("[Dashboard] === PAGE LOAD STARTED ===");
+
+      // Use singleton Supabase client to avoid auth race conditions
+      const { createClient: createClientInner } = await import("@/utils/supabase/client");
+      const supabase = createClientInner();
+      console.log("[Dashboard] Client created (singleton)");
+
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      console.log("[Dashboard] Session loaded:", { userId: session?.user?.id, email: session?.user?.email, sessionError });
+
+      if (!session?.user) {
+        console.warn("[Dashboard] No session, aborting");
+        setLoading(false);
+        return;
+      }
+
+      const name = session.user.user_metadata?.full_name?.split(" ")[0] || session.user.email?.split("@")[0] || "there";
+      setFirstName(name);
+
       try {
-        const supabase = createClient();
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        console.log("[Dashboard] Session loaded:", { userId: session?.user?.id, email: session?.user?.email, sessionError });
-
-        if (!session?.user) {
-          console.warn("[Dashboard] No session, aborting");
-          return;
-        }
-
-        const name = session.user.user_metadata?.full_name?.split(" ")[0] || session.user.email?.split("@")[0] || "there";
-        setFirstName(name);
-
         // Fetch connected repositories
         console.log("[Dashboard] Fetching repositories for user:", session.user.id);
         const { data: repos, error: reposError } = await supabase
@@ -196,6 +202,15 @@ export default function DashboardPage() {
         const repoIds = repos?.map((r: any) => r.id) ?? [];
         console.log("[Dashboard] Repo IDs:", repoIds);
 
+        // Try a direct query for the known scan ID to debug
+        console.log("[Dashboard] Testing with known scan ID: 960141e9-d36b-4f9e-a43a-a167fa48b70b");
+        const { data: testScan, error: testError } = await supabase
+          .from("scans")
+          .select("*")
+          .eq("id", "960141e9-d36b-4f9e-a43a-a167fa48b70b")
+          .single();
+        console.log("[Dashboard] Test scan result:", testScan, "error:", testError);
+
         // Fetch recent scans (without repositories join — RLS blocks cross-table joins)
         console.log("[Dashboard] Fetching scans for repo IDs:", repoIds);
         const { data: scans, error: scansError } = await supabase
@@ -207,6 +222,8 @@ export default function DashboardPage() {
         console.log("[Dashboard] Scans result:", { count: scans?.length, scansError });
         if (scansError) {
           console.error("[Dashboard] Scans error:", scansError);
+        } else {
+          console.log("[Dashboard] Scans data:", JSON.stringify(scans, null, 2));
         }
         if (scans) {
           // Enrich with repo names (fetched separately above)
@@ -228,13 +245,13 @@ export default function DashboardPage() {
           totalVulnerabilities: 0,
           fixedCount: 0,
         });
-
-        console.log("[Dashboard] === PAGE LOAD COMPLETE ===");
       } catch (error) {
         console.error("[Dashboard] Unexpected error:", error);
       } finally {
         setLoading(false);
       }
+
+      console.log("[Dashboard] === PAGE LOAD COMPLETE ===");
     }
 
     loadData();
