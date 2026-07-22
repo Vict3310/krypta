@@ -23,11 +23,35 @@ export default function ScanDetailPage({ params }: { params: { id: string } }) {
   useEffect(() => {
     const load = async () => {
       const supabase = createClient();
-      const [{ data: scanData }, { data: vulnData }] = await Promise.all([
-        supabase.from("scans").select("*, repositories(full_name)").eq("id", params.id).single(),
-        supabase.from("vulnerabilities").select("*").eq("scan_id", params.id).order("severity", { ascending: false }),
-      ]);
-      setScan(scanData as Scan);
+
+      // Fetch scans without cross-table join (RLS blocks repositories in join)
+      const { data: scanData } = await supabase
+        .from("scans")
+        .select("*")
+        .eq("id", params.id)
+        .single();
+
+      // Fetch repo name separately
+      const { data: repos } = await supabase
+        .from("repositories")
+        .select("id, full_name")
+        .in("id", [scanData?.repository_id])
+        .single();
+
+      // Merge repo name into scan
+      const scanWithRepo = scanData ? {
+        ...scanData,
+        repositories: { full_name: repos?.full_name || "Unknown" },
+      } : null;
+
+      setScan(scanWithRepo as Scan);
+
+      const { data: vulnData } = await supabase
+        .from("vulnerabilities")
+        .select("*")
+        .eq("scan_id", params.id)
+        .order("severity", { ascending: false });
+
       setVulnerabilities((vulnData as Vulnerability[]) ?? []);
       if (vulnData && vulnData.length > 0) setSelected(vulnData[0] as Vulnerability);
       setLoading(false);
