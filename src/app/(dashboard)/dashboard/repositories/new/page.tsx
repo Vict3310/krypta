@@ -1,63 +1,153 @@
+"use client";
+
 import { GitBranch, Plus, Search, ShieldCheck, AlertCircle } from "lucide-react";
-import { createClient } from "@/utils/supabase/server";
-import { getGitHubUserRepositories } from "@/lib/github";
-import { getUserRepositories } from "@/lib/db";
-import { connectRepository } from "./actions";
+import { createClient } from "@/utils/supabase/client";
 import Link from "next/link";
+import { useState, useEffect } from "react";
 
-export default async function NewRepositoryPage() {
-  const supabase = await createClient();
-  const { data: { session } } = await supabase.auth.getSession();
+interface Repo {
+  githubRepoId: number;
+  name: string;
+  defaultBranch: string;
+  isConnected: boolean;
+}
 
-  let githubRepos: any[] = [];
-  let dbRepos: any[] = [];
-  let errorMsg: string | null = null;
-  let githubUsername: string | null = null;
+export default function NewRepositoryPage() {
+  const [repos, setRepos] = useState<Repo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [githubUsername, setGithubUsername] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [userMetadata, setUserMetadata] = useState<any>(null);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [connectError, setConnectError] = useState<string | null>(null);
 
-  if (session?.user) {
-    dbRepos = await getUserRepositories(session.user.id);
+  useEffect(() => {
+    async function load() {
+      try {
+        const supabase = createClient();
+        const { data: { session } } = await supabase.auth.getSession();
 
-    // Try to get GitHub username from metadata
-    // Supabase GitHub OAuth stores: preferred_username (GitHub username), user_name, name
-    const meta = session.user.user_metadata as any;
-    const githubLogin = meta?.preferred_username || meta?.user_name || meta?.login || meta?.github_username;
-    if (githubLogin) {
-      githubUsername = githubLogin;
-    } else {
-      // Fall back to email only if it doesn't contain @ (raw GitHub OAuth email, not common)
-      const email = session.user.email?.replace(/@github\.com$/i, "");
-      if (email && !email.includes("@")) {
-        githubUsername = email;
-      } else {
-        errorMsg = `Could not determine your GitHub username. Please sign in with GitHub.`;
+        if (!session?.user) {
+          setErrorMsg("Not authenticated");
+          setLoading(false);
+          return;
+        }
+
+        setUserEmail(session.user.email || null);
+        setUserMetadata(session.user.user_metadata || null);
+        console.log("[Page] Session loaded:", {
+          userId: session.user.id,
+          email: session.user.email,
+          metadata: session.user.user_metadata,
+        });
+
+        // Try to get GitHub username from metadata
+        const meta = session.user.user_metadata as any;
+        const githubLogin = meta?.preferred_username || meta?.user_name || meta?.login || meta?.github_username;
+
+        if (githubLogin) {
+          setGithubUsername(githubLogin);
+          console.log("[Page] GitHub username from metadata:", githubLogin);
+        } else {
+          const email = session.user.email?.replace(/@github\.com$/i, "");
+          if (email && !email.includes("@")) {
+            setGithubUsername(email);
+            console.log("[Page] GitHub username from email:", email);
+          } else {
+            setErrorMsg("Could not determine your GitHub username.");
+          }
+        }
+
+        // Load connected repos from DB
+        const { data: dbRepos } = await supabase
+          .from("repositories")
+          .select("github_repo_id")
+          .eq("user_id", session.user.id);
+        console.log("[Page] DB-connected repos:", dbRepos?.map((r: any) => r.github_repo_id) || []);
+
+        // Load GitHub repos
+        if (githubLogin) {
+          console.log("[Page] Fetching GitHub repos for:", githubLogin);
+          const res = await fetch(`/api/github/repos?username=${encodeURIComponent(githubLogin)}`);
+          if (!res.ok) {
+            const body = await res.text();
+            throw new Error(`API returned ${res.status}: ${body}`);
+          }
+          const data = await res.json();
+          console.log("[Page] GitHub API response:", data);
+          setRepos(data.repos);
+        }
+      } catch (e) {
+        console.error("[Page] Load error:", e);
+        setErrorMsg((e as Error).message);
+      } finally {
+        setLoading(false);
       }
     }
 
-    console.log("[NewRepositoryPage] githubUsername:", githubUsername, "userId:", session.user.id);
-  }
+    load();
+  }, []);
 
-  try {
-    if (githubUsername) {
-      githubRepos = await getGitHubUserRepositories(githubUsername);
+  const connectRepo = async (repo: Repo) => {
+    setIsConnecting(true);
+    setConnectError(null);
+
+    console.log("[Connect] Starting connect for:", repo.name, "id:", repo.githubRepoId, "branch:", repo.defaultBranch);
+
+    try {
+      const res = await fetch("/api/github/connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          repoFullName: repo.name,
+          githubRepoId: repo.githubRepoId,
+          defaultBranch: repo.defaultBranch,
+        }),
+      });
+
+      console.log("[Connect] Response status:", res.status);
+      const data = await res.json().catch(() => ({}));
+      console.log("[Connect] Response body:", data);
+
+      if (!res.ok) {
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+
+      console.log("[Connect] Success! Re-fetching repo list...");
+      setRepos((prev) =>
+        prev.map((r) => (r.githubRepoId === repo.githubRepoId ? { ...r, isConnected: true } : r))
+      );
+    } catch (e) {
+      const msg = (e as Error).message;
+      console.error("[Connect] Error:", msg);
+      setConnectError(msg);
+    } finally {
+      setIsConnecting(false);
     }
-  } catch (e) {
-    console.error(e);
-    if (!errorMsg) {
-      errorMsg = "Failed to fetch repositories from GitHub.";
-    }
+  };
+
+  if (loading) {
+    return (
+      <main className="p-6 md:p-8 max-w-4xl mx-auto">
+        <div className="flex items-center justify-center h-64 text-sf-text-tertiary">Loading...</div>
+      </main>
+    );
   }
-
-  const dbRepoIds = new Set(dbRepos.map((r) => r.github_repo_id));
-
-  const reposToDisplay = githubRepos.map((repo) => ({
-    githubRepoId: repo.id,
-    name: repo.full_name,
-    defaultBranch: repo.default_branch,
-    isConnected: dbRepoIds.has(repo.id),
-  }));
 
   return (
     <main className="p-6 md:p-8 max-w-4xl mx-auto">
+      {/* Debug info */}
+      <details className="mb-6 rounded-xl border border-black/5 bg-black/[0.02] p-4">
+        <summary className="text-sm font-medium text-sf-text-secondary cursor-pointer">Debug Info</summary>
+        <div className="mt-3 space-y-2 text-xs font-mono">
+          <p><strong>Email:</strong> {userEmail}</p>
+          <p><strong>GitHub Username:</strong> {githubUsername}</p>
+          <p><strong>Metadata:</strong> {JSON.stringify(userMetadata)}</p>
+          <p><strong>Repos Loaded:</strong> {repos.length}</p>
+        </div>
+      </details>
+
       <header className="mb-8">
         <h1 className="text-2xl font-semibold text-sf-text-primary tracking-tight">
           Connect Repository
@@ -87,6 +177,13 @@ export default async function NewRepositoryPage() {
           </div>
         )}
 
+        {connectError && (
+          <div className="mb-6 flex items-center gap-3 rounded-full bg-red-50 border border-red-200 px-4 py-3">
+            <AlertCircle className="h-4 w-4 text-red-500 shrink-0" />
+            <p className="text-red-600 text-sm">{connectError}</p>
+          </div>
+        )}
+
         {/* Search & Sync */}
         <div className="flex items-center gap-3 mb-6">
           <div className="relative flex-1">
@@ -101,7 +198,7 @@ export default async function NewRepositoryPage() {
 
         {/* Repo list */}
         <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
-          {reposToDisplay.map((repo) => (
+          {repos.map((repo) => (
             <div
               key={repo.githubRepoId}
               className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-black/5 bg-black/[0.02] px-5 py-4 transition-colors hover:bg-black/[0.04]"
@@ -119,39 +216,23 @@ export default async function NewRepositoryPage() {
                   Scanning Enabled
                 </div>
               ) : (
-                <form action={connectRepository}>
-                  <input
-                    type="hidden"
-                    name="repoFullName"
-                    value={repo.name}
-                  />
-                  <input
-                    type="hidden"
-                    name="githubRepoId"
-                    value={repo.githubRepoId}
-                  />
-                  <input
-                    type="hidden"
-                    name="defaultBranch"
-                    value={repo.defaultBranch}
-                  />
-                  <button
-                    type="submit"
-                    className="inline-flex items-center gap-1.5 rounded-full bg-[#171719] px-3 py-1.5 text-xs font-medium text-white shadow-[0_1px_0_rgba(255,255,255,0.2)_inset,0_8px_18px_-10px_rgba(23,23,25,0.5)] transition-all hover:-translate-y-0.5"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Connect
-                  </button>
-                </form>
+                <button
+                  onClick={() => connectRepo(repo)}
+                  disabled={isConnecting}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-[#171719] px-3 py-1.5 text-xs font-medium text-white shadow-[0_1px_0_rgba(255,255,255,0.2)_inset,0_8px_18px_-10px_rgba(23,23,25,0.5)] transition-all hover:-translate-y-0.5 disabled:opacity-50"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  {isConnecting ? "Connecting..." : "Connect"}
+                </button>
               )}
             </div>
           ))}
-          {reposToDisplay.length === 0 && !errorMsg && (
+          {repos.length === 0 && !errorMsg && (
             <div className="text-center py-8 space-y-3">
               <p className="text-sm text-sf-text-tertiary">
                 {githubUsername
-                  ? `No repositories found for @${githubUsername}. This usually means the GitHub App isn't installed or your environment variables aren't configured. Install the Krypta GitHub App below, or connect a repository manually.`
-                  : "Unable to determine your GitHub username. Please sign in with GitHub."
+                  ? `No repositories found for @${githubUsername}.`
+                  : "Unable to determine your GitHub username."
                 }
               </p>
               <a
@@ -162,12 +243,6 @@ export default async function NewRepositoryPage() {
               >
                 Install Krypta GitHub App
               </a>
-            </div>
-          )}
-
-          {errorMsg && (
-            <div className="mt-4 text-center">
-              <p className="text-sm text-red-600">{errorMsg}</p>
             </div>
           )}
         </div>
