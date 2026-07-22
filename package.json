@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.16",
+    "@octokit/app": "^16.1.2",
     "@react-email/components": "^1.0.12",
     "@sentry/nextjs": "^10.67.0",
     "@supabase/ssr": "^0.12.3",

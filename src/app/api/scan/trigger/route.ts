@@ -6,12 +6,24 @@ import { createSign } from "node:crypto";
 
 // GitHub App JWT token generator
 async function getGitHubAppToken(): Promise<string> {
-  const privateKey = process.env.GITHUB_APP_PRIVATE_KEY?.replace(/\\n/g, "\n") || "";
+  const rawKey = process.env.GITHUB_APP_PRIVATE_KEY || "";
   const appId = process.env.GITHUB_APP_ID;
 
-  if (!privateKey || !appId) {
-    throw new Error("GitHub App credentials not configured");
+  if (!rawKey || !appId) {
+    throw new Error("GitHub App credentials not configured (GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY must be set)");
   }
+
+  // Reject fingerprints, stubs, or obviously wrong key formats
+  if (rawKey.startsWith("SHA256:") || rawKey === "PLACEHOLDER" || rawKey.length < 100) {
+    throw new Error(
+      "Invalid GITHUB_APP_PRIVATE_KEY format. The value appears to be a key fingerprint or placeholder. " +
+      "You must set it to the full PEM private key obtained from GitHub App settings. " +
+      "Generate it with: openssl genrsa -out private-key.pem 2048"
+    );
+  }
+
+  // Replace literal \n with actual newlines (for keys stored in env without real newlines)
+  const privateKey = rawKey.replace(/\\n/g, "\n");
 
   const iat = Math.floor(Date.now() / 1000);
   const exp = iat + 600;
@@ -24,30 +36,44 @@ async function getGitHubAppToken(): Promise<string> {
 
   const jwt = `${header}.${payload}.${signature}`;
 
-  const { data: installations } = await fetch(`https://api.github.com/app/installations`, {
+  // Get installations
+  const installationsRes = await fetch(`https://api.github.com/app/installations`, {
     headers: {
       Authorization: `Bearer ${jwt}`,
       "X-GitHub-Api-Version": "2022-11-28",
       Accept: "application/vnd.github+json",
     },
-  }).then((r) => r.json());
+  });
 
+  if (!installationsRes.ok) {
+    const body = await installationsRes.text();
+    throw new Error(`Failed to get installations: ${installationsRes.status} ${body}`);
+  }
+
+  const installations = await installationsRes.json();
   if (!installations?.length) {
     throw new Error("No GitHub App installations found");
   }
 
   const installationId = installations[0].id;
 
-  const { data } = await fetch(`https://api.github.com/app/installations/${installationId}/access_tokens`, {
+  // Generate access token
+  const tokenRes = await fetch(`https://api.github.com/app/installations/${installationId}/access_tokens`, {
     headers: {
       Authorization: `Bearer ${jwt}`,
       "X-GitHub-Api-Version": "2022-11-28",
       Accept: "application/vnd.github+json",
     },
     method: "POST",
-  }).then((r) => r.json());
+  });
 
-  return data.token;
+  if (!tokenRes.ok) {
+    const body = await tokenRes.text();
+    throw new Error(`Failed to get access token: ${tokenRes.status} ${body}`);
+  }
+
+  const { token } = await tokenRes.json();
+  return token;
 }
 
 // Basic security patterns to check
