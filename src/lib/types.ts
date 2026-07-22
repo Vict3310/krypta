@@ -92,3 +92,31 @@ export type TeamInvitation = {
   accepted_at: string | null;
   created_at: string;
 };
+
+export type ExploitScanJob = {
+  id: string;
+  user_id: string;
+  target_url: string;
+  status: "pending" | "running" | "completed" | "failed";
+  vulnerability_ids: string[];
+  total_exploits: number;
+  results_summary: Record<string, number>;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ExploitResult = {
+  id: string;
+  job_id: string;
+  vulnerability_id: string | null;
+  target_url: string;
+  exploit_type: string;
+  result: "exploitable" | "false_positive" | "blocked" | "error";
+  details: Record<string, unknown>;
+  http_status: number | null;
+  response_headers: Record<string, string> | null;
+  error_message: string | null;
+  created_at: string;
+};

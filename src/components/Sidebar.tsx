@@ -11,6 +11,7 @@ import {
   Menu,
   X,
   CreditCard,
+  Flame,
 } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 
@@ -21,6 +22,7 @@ export function Sidebar() {
   const navLinks = [
     { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
     { href: "/dashboard/scans", icon: Shield, label: "Scans" },
+    { href: "/dashboard/exploit-scans", icon: Flame, label: "Exploit Scans" },
     { href: "/dashboard/history", icon: History, label: "History" },
   ];
 
