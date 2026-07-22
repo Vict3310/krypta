@@ -70,10 +70,15 @@ export default function ScanDetailPage({ params }: { params: Promise<{ id: strin
 
   // Real-time Supabase subscription for live scan updates
   useEffect(() => {
-    const initChannel = async () => {
+    let cancelled = false;
+    let channel: ReturnType<typeof createClient>['channel'] | null = null;
+    const supabase = createClient();
+
+    (async () => {
       const { id } = await params;
-      const supabase = createClient();
-      const channel = supabase
+      if (cancelled) return;
+
+      channel = supabase
         .channel(`scan-${id}`)
         .on(
           "postgres_changes",
@@ -107,13 +112,14 @@ export default function ScanDetailPage({ params }: { params: Promise<{ id: strin
           }
         )
         .subscribe();
+    })();
 
-      return () => {
+    return () => {
+      cancelled = true;
+      if (channel) {
         supabase.removeChannel(channel);
-      };
+      }
     };
-    const cleanup = initChannel();
-    return () => cleanup.then(c => c?.());
   }, [params, selected?.id]);
 
   const handleDismiss = async (vuln: Vulnerability) => {
