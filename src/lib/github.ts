@@ -1,5 +1,5 @@
 import { Octokit } from "octokit";
-import { createSign } from "node:crypto";
+import { createSign, type PrivateKeyInput } from "node:crypto";
 
 const getGitHubAppToken = async (): Promise<string> => {
   let privateKey = process.env.GITHUB_APP_PRIVATE_KEY?.replace(/\\n/g, "\n") || "";
@@ -17,7 +17,7 @@ const getGitHubAppToken = async (): Promise<string> => {
   const payload = Buffer.from(JSON.stringify({ iat, exp, iss: appId })).toString("base64url");
   const sign = createSign("SHA256");
   sign.update(`${header}.${payload}`);
-  const signature = sign.sign({ key: privateKey, padding: 1, dsa: "ecdsa", namedCurve: "prime256v1" }).toString("base64url");
+  const signature = sign.sign({ key: privateKey as PrivateKeyInput, padding: 1, dsa: "ecdsa", namedCurve: "prime256v1" } as Record<string, unknown>).toString("base64url");
 
   const jwt = `${header}.${payload}.${signature}`;
 
