@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/utils/supabase/service";
 import { createClient } from "@/utils/supabase/server";
 import { Octokit } from "octokit";
-import { createSign, type PrivateKeyInput } from "node:crypto";
+import { createSign } from "node:crypto";
 
 // GitHub App JWT token generator
 async function getGitHubAppToken(): Promise<string> {
@@ -34,7 +34,8 @@ async function getGitHubAppToken(): Promise<string> {
   const payload = Buffer.from(JSON.stringify({ iat, exp, iss: appId })).toString("base64url");
   const sign = createSign("SHA256");
   sign.update(`${header}.${payload}`);
-  const signature = sign.sign({ key: privateKey as PrivateKeyInput, padding: 1, dsa: "ecdsa", namedCurve: "prime256v1" } as Record<string, unknown>).toString("base64url");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const signature = sign.sign({ key: privateKey, padding: 1, dsa: "ecdsa", namedCurve: "prime256v1" } as any).toString("base64url");
 
   const jwt = `${header}.${payload}.${signature}`;
 
