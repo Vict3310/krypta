@@ -2,8 +2,10 @@ import { Octokit } from "octokit";
 import { createSign } from "node:crypto";
 
 const getGitHubAppToken = async (): Promise<string> => {
-  const privateKey = process.env.GITHUB_APP_PRIVATE_KEY?.replace(/\\n/g, "\n") || "";
+  let privateKey = process.env.GITHUB_APP_PRIVATE_KEY?.replace(/\\n/g, "\n") || "";
   if (!privateKey) throw new Error("GITHUB_APP_PRIVATE_KEY not configured");
+  // Also handle Windows-style newlines
+  privateKey = privateKey.replace(/\r\n/g, "\n");
 
   const appId = process.env.GITHUB_APP_ID;
   if (!appId) throw new Error("GITHUB_APP_ID not configured");
@@ -11,11 +13,11 @@ const getGitHubAppToken = async (): Promise<string> => {
   const iat = Math.floor(Date.now() / 1000);
   const exp = iat + 600; // 10 minutes
 
-  const header = Buffer.from(JSON.stringify({ alg: "RS256", typ: "JWT" })).toString("base64url");
+  const header = Buffer.from(JSON.stringify({ alg: "ES256", typ: "JWT" })).toString("base64url");
   const payload = Buffer.from(JSON.stringify({ iat, exp, iss: appId })).toString("base64url");
-  const sign = createSign("RSA-SHA256");
+  const sign = createSign("SHA256");
   sign.update(`${header}.${payload}`);
-  const signature = sign.sign({ key: privateKey, padding: 1 }).toString("base64url"); // 1 = RSA_PKCS1_PADDING
+  const signature = sign.sign({ key: privateKey, padding: 1, dsa: "ecdsa", namedCurve: "prime256v1" }).toString("base64url");
 
   const jwt = `${header}.${payload}.${signature}`;
 
@@ -118,8 +120,9 @@ export async function createFixPullRequest(
   vulnerabilityType: string,
   baseBranch: string = "main"
 ) {
-  // In a real app, this would use a GitHub App Installation Access Token
-  const octokit = new Octokit({ auth: process.env.GITHUB_APP_PRIVATE_KEY });
+  // Get a fresh installation token for PR creation
+  const token = await getGitHubAppToken();
+  const octokit = new Octokit({ auth: token });
 
   const branchName = `krypta-fix-${vulnerabilityType.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-$/, "")}-${Date.now()}`;
 

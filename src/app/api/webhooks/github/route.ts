@@ -3,7 +3,7 @@ import crypto from "crypto";
 import * as Sentry from "@sentry/nextjs";
 import { rateLimit, webhookLimiter } from "@/lib/rate-limit";
 import { scanCodeSnippet, type ScanRules } from "@/lib/ai";
-import { createFixPullRequest } from "@/lib/github";
+import { createFixPullRequest, getGitHubAppToken } from "@/lib/github";
 import { createServiceRoleClient } from "@/utils/supabase/service";
 import { sendCriticalVulnerabilityEmail } from "@/lib/emails";
 import { sendSlackNotification } from "@/lib/slack";
@@ -114,7 +114,8 @@ export async function POST(req: Request) {
 
     if (!scan) throw new Error("Failed to create scan record");
 
-    const octokit = new Octokit({ auth: process.env.GITHUB_APP_PRIVATE_KEY });
+    const githubToken = await getGitHubAppToken();
+    const octokit = new Octokit({ auth: githubToken });
     let filesScanned = 0;
     let vulnerabilitiesFound: Array<{
       filePath: string;

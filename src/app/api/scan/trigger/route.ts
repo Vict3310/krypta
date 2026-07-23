@@ -14,25 +14,27 @@ async function getGitHubAppToken(): Promise<string> {
   }
 
   // Reject fingerprints, stubs, or obviously wrong key formats
-  if (rawKey.startsWith("SHA256:") || rawKey === "PLACEHOLDER" || rawKey.length < 100) {
+  if (rawKey.startsWith("SHA256:") || rawKey.startsWith("fingerprint") || rawKey === "PLACEHOLDER" || rawKey.length < 100) {
     throw new Error(
       "Invalid GITHUB_APP_PRIVATE_KEY format. The value appears to be a key fingerprint or placeholder. " +
       "You must set it to the full PEM private key obtained from GitHub App settings. " +
-      "Generate it with: openssl genrsa -out private-key.pem 2048"
+      "Generate it with: Generate a private key in GitHub App settings"
     );
   }
 
-  // Replace literal \n with actual newlines (for keys stored in env without real newlines)
-  const privateKey = rawKey.replace(/\\n/g, "\n");
+  // Replace literal \\n with actual newlines (for keys stored in env without real newlines)
+  let privateKey = rawKey.replace(/\\n/g, "\n");
+  // Also replace Windows-style newlines
+  privateKey = privateKey.replace(/\r\n/g, "\n");
 
   const iat = Math.floor(Date.now() / 1000);
   const exp = iat + 600;
 
-  const header = Buffer.from(JSON.stringify({ alg: "RS256", typ: "JWT" })).toString("base64url");
+  const header = Buffer.from(JSON.stringify({ alg: "ES256", typ: "JWT" })).toString("base64url");
   const payload = Buffer.from(JSON.stringify({ iat, exp, iss: appId })).toString("base64url");
-  const sign = createSign("RSA-SHA256");
+  const sign = createSign("SHA256");
   sign.update(`${header}.${payload}`);
-  const signature = sign.sign({ key: privateKey, padding: 1 }).toString("base64url");
+  const signature = sign.sign({ key: privateKey, padding: 1, dsa: "ecdsa", namedCurve: "prime256v1" }).toString("base64url");
 
   const jwt = `${header}.${payload}.${signature}`;
 

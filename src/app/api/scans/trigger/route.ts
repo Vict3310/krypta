@@ -5,7 +5,7 @@
 import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { scanCodeSnippet } from "@/lib/ai";
-import { createFixPullRequest } from "@/lib/github";
+import { createFixPullRequest, getGitHubAppToken } from "@/lib/github";
 import { createServiceRoleClient } from "@/utils/supabase/service";
 import { Octokit } from "octokit";
 
@@ -50,8 +50,9 @@ export async function POST(req: Request) {
     const owner = repo.full_name.split("/")[0];
     const repoName = repo.full_name.split("/")[1];
 
-    // Get latest commit SHA for the branch
-    const octokit = new Octokit({ auth: process.env.GITHUB_APP_PRIVATE_KEY });
+    // Get GitHub App Installation Access Token
+    const githubToken = await getGitHubAppToken();
+    const octokit = new Octokit({ auth: githubToken });
     try {
       const { data: refData } = await octokit.rest.git.getRef({
         owner,
