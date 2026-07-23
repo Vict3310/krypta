@@ -61,6 +61,8 @@ const getGitHubAppToken = async (): Promise<string> => {
   return data.token;
 };
 
+export { getGitHubAppToken };
+
 export async function getGitHubUserRepositories(username: string): Promise<any[]> {
   // Strategy 1: Try GitHub App installation token to get repos the app has access to
   try {
