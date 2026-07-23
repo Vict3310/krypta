@@ -234,29 +234,29 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <main className="p-6 md:p-8 max-w-5xl mx-auto">
-        <div className="flex items-center justify-center h-64 text-sf-text-tertiary">Loading settings...</div>
+      <main className="p-4 md:p-6 lg:p-8 max-w-5xl mx-auto">
+        <div className="flex items-center justify-center h-48 sm:h-64 text-sf-text-tertiary">Loading settings...</div>
       </main>
     );
   }
 
   return (
-    <main className="p-6 md:p-8 max-w-5xl mx-auto">
-      <header className="mb-8">
-        <h1 className="text-2xl font-semibold text-sf-text-primary tracking-tight">Settings</h1>
-        <p className="text-sm text-sf-text-secondary mt-1">
+    <main className="p-4 md:p-6 lg:p-8 max-w-5xl mx-auto">
+      <header className="mb-6 md:mb-8">
+        <h1 className="text-xl sm:text-2xl font-semibold text-sf-text-primary tracking-tight">Settings</h1>
+        <p className="text-xs sm:text-sm text-sf-text-secondary mt-0.5 sm:mt-1">
           Manage your account, API keys, and notification preferences.
         </p>
       </header>
 
-      <div className="flex flex-col md:flex-row gap-8">
+      <div className="flex flex-col md:flex-row gap-6 md:gap-8">
         {/* Sidebar Nav */}
         <aside className="w-full md:w-56 flex flex-col gap-1 shrink-0">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-3 px-4 py-2.5 rounded-full text-sm font-medium transition-colors ${activeTab === tab.id
+              className={`flex items-center gap-2 sm:gap-3 px-3 py-2 sm:px-4 sm:py-2.5 rounded-full text-[13px] sm:text-sm font-medium transition-colors ${activeTab === tab.id
                 ? "bg-sf-text-primary text-white shadow-[0_1px_0_rgba(255,255,255,0.2)_inset,0_8px_18px_-10px_rgba(35,36,39,0.3)]"
                 : "text-sf-text-secondary hover:text-sf-text-primary hover:bg-black/5"
                 }`}
@@ -268,39 +268,39 @@ export default function SettingsPage() {
         </aside>
 
         {/* Content Area */}
-        <div className="flex-1 rounded-[28px] border border-black/5 bg-white p-8 shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_14px_30px_-18px_rgba(35,36,39,0.25)]">
+        <div className="flex-1 rounded-[28px] border border-black/5 bg-white p-4 sm:p-6 md:p-8 shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_14px_30px_-18px_rgba(35,36,39,0.25)]">
           {activeTab === "account" && (
-            <div className="space-y-6">
-              <h2 className="text-lg font-semibold text-sf-text-primary border-b border-black/5 pb-4">
+            <div className="space-y-4 sm:space-y-6">
+              <h2 className="text-base sm:text-lg font-semibold text-sf-text-primary border-b border-black/5 pb-3 sm:pb-4">
                 Account Profile
               </h2>
 
-              <div className="flex items-center gap-6">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-tr from-sf-accent to-[#F05A3C] text-xl font-bold text-white shadow-[0_14px_30px_-12px_rgba(227,74,50,0.4)]">
+              <div className="flex items-center gap-4 sm:gap-6">
+                <div className="flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-full bg-gradient-to-tr from-sf-accent to-[#F05A3C] text-base sm:text-xl font-bold text-white shadow-[0_14px_30px_-12px_rgba(227,74,50,0.4)]">
                   {name ? name.charAt(0).toUpperCase() : plan === "pro" ? "P" : "D"}
                 </div>
-                <span className="text-sm text-sf-text-tertiary">
+                <span className="text-xs sm:text-sm text-sf-text-tertiary">
                   Plan: <span className="font-medium text-sf-text-primary capitalize">{plan}</span>
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-sf-text-secondary ml-1">Full Name</label>
+                  <label className="text-xs sm:text-sm font-medium text-sf-text-secondary ml-1">Full Name</label>
                   <input
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full rounded-full border border-black/10 bg-white px-5 py-2.5 text-sm outline-none shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_8px_20px_-12px_rgba(35,36,39,0.25)] transition-all focus:border-sf-accent/50 focus:ring-2 focus:ring-sf-accent/20"
+                    className="w-full rounded-full border border-black/10 bg-white px-4 py-2 sm:px-5 sm:py-2.5 text-sm outline-none shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_8px_20px_-12px_rgba(35,36,39,0.25)] transition-all focus:border-sf-accent/50 focus:ring-2 focus:ring-sf-accent/20"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-sf-text-secondary ml-1">Email Address</label>
+                  <label className="text-xs sm:text-sm font-medium text-sf-text-secondary ml-1">Email Address</label>
                   <input
                     type="email"
                     value={email}
                     disabled
-                    className="w-full rounded-full border border-black/5 bg-black/[0.02] px-5 py-2.5 text-sm text-sf-text-tertiary cursor-not-allowed"
+                    className="w-full rounded-full border border-black/5 bg-black/[0.02] px-4 py-2 sm:px-5 sm:py-2.5 text-sm text-sf-text-tertiary cursor-not-allowed"
                   />
                 </div>
               </div>
@@ -308,11 +308,11 @@ export default function SettingsPage() {
           )}
 
           {activeTab === "keys" && (
-            <div className="space-y-6">
-              <h2 className="text-lg font-semibold text-sf-text-primary border-b border-black/5 pb-4">
+            <div className="space-y-4 sm:space-y-6">
+              <h2 className="text-base sm:text-lg font-semibold text-sf-text-primary border-b border-black/5 pb-3 sm:pb-4">
                 API Keys
               </h2>
-              <p className="text-sm text-sf-text-secondary">
+              <p className="text-xs sm:text-sm text-sf-text-secondary">
                 Use these keys to integrate Krypta with your CI/CD pipelines. Coming soon.
               </p>
               <div className="rounded-xl border border-black/5 bg-black/[0.02] p-4 text-center text-sm text-sf-text-tertiary">
@@ -322,18 +322,18 @@ export default function SettingsPage() {
           )}
 
           {activeTab === "slack" && (
-            <div className="space-y-6">
-              <h2 className="text-lg font-semibold text-sf-text-primary border-b border-black/5 pb-4">
+            <div className="space-y-4 sm:space-y-6">
+              <h2 className="text-base sm:text-lg font-semibold text-sf-text-primary border-b border-black/5 pb-3 sm:pb-4">
                 Slack Integration
               </h2>
-              <p className="text-sm text-sf-text-secondary">
+              <p className="text-xs sm:text-sm text-sf-text-secondary">
                 Connect your Slack workspace to receive real-time security alerts when vulnerabilities are detected.
               </p>
 
-              <div className="space-y-5">
+              <div className="space-y-4 sm:space-y-5">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-sf-text-secondary ml-1">Slack Webhook URL</label>
-                  <p className="text-xs text-sf-text-tertiary ml-1">
+                  <label className="text-xs sm:text-sm font-medium text-sf-text-secondary ml-1">Slack Webhook URL</label>
+                  <p className="text-[10px] sm:text-xs text-sf-text-tertiary ml-1">
                     Create a webhook at{" "}
                     <a href="https://slack.com/apps/new/A0F7XDUAZ-incoming-webhooks" target="_blank" rel="noopener noreferrer" className="text-sf-accent underline">
                       slack.com/apps/new/A0F7XDUAZ-incoming-webhooks
@@ -344,26 +344,26 @@ export default function SettingsPage() {
                     value={slackWebhook}
                     onChange={(e) => setSlackWebhook(e.target.value)}
                     placeholder="https://hooks.slack.com/services/..."
-                    className="w-full rounded-full border border-black/10 bg-white px-5 py-2.5 text-sm outline-none shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_8px_20px_-12px_rgba(35,36,39,0.25)] transition-all focus:border-sf-accent/50 focus:ring-2 focus:ring-sf-accent/20"
+                    className="w-full rounded-full border border-black/10 bg-white px-4 py-2 sm:px-5 sm:py-2.5 text-sm outline-none shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_8px_20px_-12px_rgba(35,36,39,0.25)] transition-all focus:border-sf-accent/50 focus:ring-2 focus:ring-sf-accent/20"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-sf-text-secondary ml-1">Channel Name</label>
+                  <label className="text-xs sm:text-sm font-medium text-sf-text-secondary ml-1">Channel Name</label>
                   <input
                     type="text"
                     value={slackChannel}
                     onChange={(e) => setSlackChannel(e.target.value)}
                     placeholder="#security"
-                    className="w-full rounded-full border border-black/10 bg-white px-5 py-2.5 text-sm outline-none shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_8px_20px_-12px_rgba(35,36,39,0.25)] transition-all focus:border-sf-accent/50 focus:ring-2 focus:ring-sf-accent/20"
+                    className="w-full rounded-full border border-black/10 bg-white px-4 py-2 sm:px-5 sm:py-2.5 text-sm outline-none shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_8px_20px_-12px_rgba(35,36,39,0.25)] transition-all focus:border-sf-accent/50 focus:ring-2 focus:ring-sf-accent/20"
                   />
                 </div>
 
-                <div className="pt-4 border-t border-black/5 flex justify-end">
+                <div className="pt-3 sm:pt-4 border-t border-black/5 flex justify-end">
                   <button
                     onClick={handleSaveSlack}
                     disabled={savingSlack}
-                    className="inline-flex items-center gap-2 rounded-full bg-[#171719] px-6 py-2.5 text-sm font-medium text-white shadow-[0_1px_0_rgba(255,255,255,0.2)_inset,0_14px_28px_-12px_rgba(23,23,25,0.75)] transition-all hover:-translate-y-0.5 disabled:opacity-50"
+                    className="inline-flex items-center gap-2 rounded-full bg-[#171719] px-4 py-2 sm:px-6 sm:py-2.5 text-xs sm:text-sm font-medium text-white shadow-[0_1px_0_rgba(255,255,255,0.2)_inset,0_14px_28px_-12px_rgba(23,23,25,0.75)] transition-all hover:-translate-y-0.5 disabled:opacity-50"
                   >
                     <Save className="h-4 w-4" />
                     {savingSlack ? "Saving..." : "Connect Slack"}
@@ -374,11 +374,11 @@ export default function SettingsPage() {
           )}
 
           {activeTab === "notifications" && (
-            <div className="space-y-5">
-              <h2 className="text-lg font-semibold text-sf-text-primary border-b border-black/5 pb-4">
+            <div className="space-y-4 sm:space-y-5">
+              <h2 className="text-base sm:text-lg font-semibold text-sf-text-primary border-b border-black/5 pb-3 sm:pb-4">
                 Notification Preferences
               </h2>
-              <div className="space-y-3">
+              <div className="space-y-2.5 sm:space-y-3">
                 <ToggleRow
                   title="Critical Vulnerability Alerts"
                   description="Receive an email immediately when a High or Critical threat is found."
@@ -396,23 +396,23 @@ export default function SettingsPage() {
           )}
 
           {activeTab === "rules" && (
-            <div className="space-y-6">
-              <h2 className="text-lg font-semibold text-sf-text-primary border-b border-black/5 pb-4">
+            <div className="space-y-4 sm:space-y-6">
+              <h2 className="text-base sm:text-lg font-semibold text-sf-text-primary border-b border-black/5 pb-3 sm:pb-4">
                 Repository Scanning Rules
               </h2>
 
               {/* Repository selector */}
               {repositories.length > 0 ? (
-                <div className="space-y-5">
+                <div className="space-y-4 sm:space-y-5">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-sf-text-secondary ml-1">Repository</label>
+                    <label className="text-xs sm:text-sm font-medium text-sf-text-secondary ml-1">Repository</label>
                     <select
                       value={selectedRepo}
                       onChange={(e) => {
                         setSelectedRepo(e.target.value);
                         setRepoSettings(null);
                       }}
-                      className="w-full rounded-full border border-black/10 bg-white px-5 py-2.5 text-sm outline-none shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_8px_20px_-12px_rgba(35,36,39,0.25)] transition-all focus:border-sf-accent/50 focus:ring-2 focus:ring-sf-accent/20"
+                      className="w-full rounded-full border border-black/10 bg-white px-4 py-2 sm:px-5 sm:py-2.5 text-sm outline-none shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_8px_20px_-12px_rgba(35,36,39,0.25)] transition-all focus:border-sf-accent/50 focus:ring-2 focus:ring-sf-accent/20"
                     >
                       {repositories.map((repo) => (
                         <option key={repo.id} value={repo.id}>{repo.full_name}</option>
@@ -422,9 +422,9 @@ export default function SettingsPage() {
 
                   {/* Min severity */}
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-sf-text-secondary ml-1">Minimum Severity Threshold</label>
-                    <p className="text-xs text-sf-text-tertiary ml-1">Vulnerabilities below this severity will be filtered out</p>
-                    <div className="flex gap-2 pt-1">
+                    <label className="text-xs sm:text-sm font-medium text-sf-text-secondary ml-1">Minimum Severity Threshold</label>
+                    <p className="text-[10px] sm:text-xs text-sf-text-tertiary ml-1">Vulnerabilities below this severity will be filtered out</p>
+                    <div className="flex gap-1.5 sm:gap-2 pt-1">
                       {severityOptions.map((sev) => (
                         <button
                           key={sev}
@@ -441,7 +441,7 @@ export default function SettingsPage() {
                             created_at: new Date().toISOString(),
                             updated_at: new Date().toISOString(),
                           })}
-                          className={`flex-1 py-2.5 rounded-full text-sm font-medium border transition-all ${repoSettings?.min_severity === sev
+                          className={`flex-1 py-2 sm:py-2.5 rounded-full text-[11px] sm:text-sm font-medium border transition-all ${repoSettings?.min_severity === sev
                             ? "bg-sf-accent text-white border-sf-accent"
                             : "bg-white text-sf-text-secondary border-black/10 hover:border-sf-accent/50"
                             }`}
@@ -493,11 +493,11 @@ export default function SettingsPage() {
                   />
 
                   {/* Save button */}
-                  <div className="pt-4 border-t border-black/5 flex justify-end">
+                  <div className="pt-3 sm:pt-4 border-t border-black/5 flex justify-end">
                     <button
                       onClick={handleSaveRules}
                       disabled={savingRules || !repoSettings}
-                      className="inline-flex items-center gap-2 rounded-full bg-[#171719] px-6 py-2.5 text-sm font-medium text-white shadow-[0_1px_0_rgba(255,255,255,0.2)_inset,0_14px_28px_-12px_rgba(23,23,25,0.75)] transition-all hover:-translate-y-0.5 disabled:opacity-50"
+                      className="inline-flex items-center gap-2 rounded-full bg-[#171719] px-4 py-2 sm:px-6 sm:py-2.5 text-xs sm:text-sm font-medium text-white shadow-[0_1px_0_rgba(255,255,255,0.2)_inset,0_14px_28px_-12px_rgba(23,23,25,0.75)] transition-all hover:-translate-y-0.5 disabled:opacity-50"
                     >
                       <Save className="h-4 w-4" />
                       {savingRules ? "Saving..." : "Save Rules"}
@@ -514,21 +514,21 @@ export default function SettingsPage() {
             </div>
           )}
 
-          <div className="mt-10 pt-6 border-t border-black/5 flex flex-col-reverse md:flex-row md:justify-between gap-4">
+          <div className="mt-6 sm:mt-10 pt-4 sm:pt-6 border-t border-black/5 flex flex-col-reverse md:flex-row md:justify-between gap-3 sm:gap-4">
             <button
               onClick={handleLogout}
               disabled={signingOut}
-              className="inline-flex items-center justify-center gap-2 rounded-full border border-red-200 bg-red-50 px-6 py-2.5 text-sm font-medium text-red-600 transition-all hover:-translate-y-0.5 hover:bg-red-100 hover:shadow-[0_1px_0_rgba(255,255,255,0.5)_inset] disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-2 rounded-full border border-red-200 bg-red-50 px-4 py-2 sm:px-6 sm:py-2.5 text-xs sm:text-sm font-medium text-red-600 transition-all hover:-translate-y-0.5 hover:bg-red-100 hover:shadow-[0_1px_0_rgba(255,255,255,0.5)_inset] disabled:opacity-50"
             >
-              <LogOut className="h-4 w-4" />
+              <LogOut className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               {signingOut ? "Signing out..." : "Sign out"}
             </button>
             <button
               onClick={handleSave}
               disabled={saving}
-              className="inline-flex items-center gap-2 rounded-full bg-[#171719] px-6 py-2.5 text-sm font-medium text-white shadow-[0_1px_0_rgba(255,255,255,0.2)_inset,0_14px_28px_-12px_rgba(23,23,25,0.75)] transition-all hover:-translate-y-0.5 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-full bg-[#171719] px-4 py-2 sm:px-6 sm:py-2.5 text-xs sm:text-sm font-medium text-white shadow-[0_1px_0_rgba(255,255,255,0.2)_inset,0_14px_28px_-12px_rgba(23,23,25,0.75)] transition-all hover:-translate-y-0.5 disabled:opacity-50"
             >
-              <Save className="h-4 w-4" />
+              <Save className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               {saving ? "Saving..." : "Save Changes"}
             </button>
           </div>

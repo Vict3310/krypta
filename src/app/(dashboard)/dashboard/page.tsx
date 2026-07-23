@@ -290,69 +290,69 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <main className="p-6 md:p-8 max-w-7xl mx-auto">
-        <div className="flex items-center justify-center h-64 text-sf-text-tertiary">Loading...</div>
+      <main className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
+        <div className="flex items-center justify-center h-48 sm:h-64 text-sf-text-tertiary">Loading...</div>
       </main>
     );
   }
 
   return (
-    <main className="p-6 md:p-8 max-w-7xl mx-auto">
+    <main className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="mt-4 mb-8 flex items-center justify-between">
+      <div className="mt-4 mb-6 md:mb-8 flex items-center justify-between flex-col sm:flex-row gap-3 sm:gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-sf-text-primary tracking-tight">
+          <h1 className="text-xl sm:text-2xl font-semibold text-sf-text-primary tracking-tight">
             Good {new Date().getHours() < 12 ? "morning" : "afternoon"}, {firstName} 👋
           </h1>
-          <p className="text-sm text-sf-text-secondary mt-1">
+          <p className="text-xs sm:text-sm text-sf-text-secondary mt-0.5 sm:mt-1">
             Here&apos;s what&apos;s happening across your repositories.
           </p>
         </div>
         <Link
           href="/dashboard/repositories/new"
-          className="hidden md:inline-flex items-center gap-2 rounded-full bg-[#171719] text-white px-5 py-2.5 text-sm font-medium shadow-[0_1px_0_rgba(255,255,255,0.2)_inset,0_14px_28px_-12px_rgba(23,23,25,0.75)] transition-all hover:-translate-y-0.5"
+          className="hidden sm:inline-flex items-center gap-2 rounded-full bg-[#171719] text-white px-4 py-2 sm:px-5 sm:py-2.5 text-xs sm:text-sm font-medium shadow-[0_1px_0_rgba(255,255,255,0.2)_inset,0_14px_28px_-12px_rgba(23,23,25,0.75)] transition-all hover:-translate-y-0.5"
         >
-          <GitBranch className="h-4 w-4" />
+          <GitBranch className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           Connect Repo
         </Link>
       </div>
 
       {/* Metric Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 md:mb-8">
         {metricCards.map((card, i) => (
           <div
             key={i}
-            className="rounded-2xl border border-black/5 bg-white p-5 shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_14px_30px_-18px_rgba(35,36,39,0.25)]"
+            className="rounded-2xl border border-black/5 bg-white p-4 sm:p-5 shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_14px_30px_-18px_rgba(35,36,39,0.25)]"
           >
-            <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-xl ${card.bgColor} ${card.iconColor}`}>
-              <card.icon className="h-5 w-5" />
+            <div className={`mb-2 sm:mb-3 flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-xl ${card.bgColor} ${card.iconColor}`}>
+              <card.icon className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
-            <p className="text-2xl font-semibold text-sf-text-primary">{card.value}</p>
-            <p className="text-xs text-sf-text-secondary mt-0.5">{card.label}</p>
+            <p className="text-xl sm:text-2xl font-semibold text-sf-text-primary">{card.value}</p>
+            <p className="text-[11px] sm:text-xs text-sf-text-secondary mt-0.5">{card.label}</p>
           </div>
         ))}
       </div>
 
       {/* Connected Repositories */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-semibold text-sf-text-primary">Connected Repositories</h2>
-          <Link href="/dashboard/repositories/new" className="text-xs text-sf-accent hover:underline flex items-center gap-1">
+      <div className="mb-6 md:mb-8">
+        <div className="flex items-center justify-between mb-3 sm:mb-4">
+          <h2 className="text-sm sm:text-base font-semibold text-sf-text-primary">Connected Repositories</h2>
+          <Link href="/dashboard/repositories/new" className="text-[11px] sm:text-xs text-sf-accent hover:underline flex items-center gap-1">
             Manage repos
             <ChevronRight className="h-3 w-3" />
           </Link>
         </div>
 
         {connectedRepos.length === 0 ? (
-          <div className="rounded-[28px] border border-black/5 bg-white p-12 text-center shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_14px_30px_-18px_rgba(35,36,39,0.25)]">
-            <GitBranch className="h-12 w-12 text-sf-text-tertiary/40 mx-auto mb-4" />
-            <p className="text-sf-text-primary font-medium mb-2">No repositories connected</p>
-            <p className="text-sm text-sf-text-secondary mb-6">Connect a GitHub repository to start security scanning.</p>
+          <div className="rounded-[28px] border border-black/5 bg-white p-8 sm:p-12 text-center shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_14px_30px_-18px_rgba(35,36,39,0.25)]">
+            <GitBranch className="h-10 w-10 sm:h-12 sm:w-12 text-sf-text-tertiary/40 mx-auto mb-3 sm:mb-4" />
+            <p className="text-sm sm:text-base text-sf-text-primary font-medium mb-1 sm:mb-2">No repositories connected</p>
+            <p className="text-xs sm:text-sm text-sf-text-secondary mb-4 sm:mb-6">Connect a GitHub repository to start security scanning.</p>
             <Link
               href="/dashboard/repositories/new"
-              className="inline-flex items-center gap-2 rounded-full bg-[#171719] text-white px-5 py-2.5 text-sm font-medium shadow-[0_1px_0_rgba(255,255,255,0.2)_inset,0_14px_28px_-12px_rgba(23,23,25,0.75)] transition-all hover:-translate-y-0.5"
+              className="inline-flex items-center gap-2 rounded-full bg-[#171719] text-white px-4 py-2 sm:px-5 sm:py-2.5 text-xs sm:text-sm font-medium shadow-[0_1px_0_rgba(255,255,255,0.2)_inset,0_14px_28px_-12px_rgba(23,23,25,0.75)] transition-all hover:-translate-y-0.5"
             >
-              <GitBranch className="h-4 w-4" />
+              <GitBranch className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Connect Repository
             </Link>
           </div>
@@ -360,14 +360,14 @@ export default function DashboardPage() {
           <div className="rounded-[28px] border border-black/5 bg-white shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_14px_30px_-18px_rgba(35,36,39,0.25)] overflow-hidden">
             <div className="divide-y divide-black/5">
               {connectedRepos.map((repo) => (
-                <div key={repo.id} className="flex items-center justify-between px-6 py-4">
-                  <div className="flex items-center gap-3">
-                    <GitBranch className="h-5 w-5 text-sf-text-tertiary" />
-                    <div>
-                      <span className="text-sm font-medium text-sf-text-primary block">
+                <div key={repo.id} className="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4">
+                  <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+                    <GitBranch className="h-4.5 w-4.5 sm:h-5 sm:w-5 text-sf-text-tertiary" />
+                    <div className="min-w-0">
+                      <span className="text-xs sm:text-sm font-medium text-sf-text-primary block truncate max-w-[150px] sm:max-w-none">
                         {repo.full_name}
                       </span>
-                      <span className="text-xs text-sf-text-tertiary">
+                      <span className="text-[10px] sm:text-xs text-sf-text-tertiary">
                         Branch: {repo.default_branch || "main"}
                       </span>
                     </div>
@@ -387,20 +387,20 @@ export default function DashboardPage() {
       </div>
 
       {/* Recent Scans */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-semibold text-sf-text-primary">Recent Scans</h2>
-          <Link href="/dashboard/scans" className="text-xs text-sf-accent hover:underline flex items-center gap-1">
+      <div className="mb-6 md:mb-8">
+        <div className="flex items-center justify-between mb-3 sm:mb-4">
+          <h2 className="text-sm sm:text-base font-semibold text-sf-text-primary">Recent Scans</h2>
+          <Link href="/dashboard/scans" className="text-[11px] sm:text-xs text-sf-accent hover:underline flex items-center gap-1">
             View all
             <ChevronRight className="h-3 w-3" />
           </Link>
         </div>
 
         {recentScans.length === 0 ? (
-          <div className="rounded-[28px] border border-black/5 bg-white p-12 text-center shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_14px_30px_-18px_rgba(35,36,39,0.25)]">
-            <Shield className="h-12 w-12 text-sf-text-tertiary/40 mx-auto mb-4" />
-            <p className="text-sf-text-primary font-medium mb-2">No scans yet</p>
-            <p className="text-sm text-sf-text-secondary mb-6">Click "Scan Now" on a repository to start security scanning.</p>
+          <div className="rounded-[28px] border border-black/5 bg-white p-8 sm:p-12 text-center shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_14px_30px_-18px_rgba(35,36,39,0.25)]">
+            <Shield className="h-10 w-10 sm:h-12 sm:w-12 text-sf-text-tertiary/40 mx-auto mb-3 sm:mb-4" />
+            <p className="text-sm sm:text-base text-sf-text-primary font-medium mb-1 sm:mb-2">No scans yet</p>
+            <p className="text-xs sm:text-sm text-sf-text-secondary mb-4 sm:mb-6">Click "Scan Now" on a repository to start security scanning.</p>
           </div>
         ) : (
           <div className="rounded-[28px] border border-black/5 bg-white shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_14px_30px_-18px_rgba(35,36,39,0.25)] overflow-hidden">

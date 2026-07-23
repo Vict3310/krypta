@@ -137,18 +137,18 @@ export default function NewRepositoryPage() {
 
   if (loading) {
     return (
-      <main className="p-6 md:p-8 max-w-4xl mx-auto">
-        <div className="flex items-center justify-center h-64 text-sf-text-tertiary">Loading...</div>
+      <main className="p-4 md:p-6 lg:p-8 max-w-4xl mx-auto">
+        <div className="flex items-center justify-center h-48 sm:h-64 text-sf-text-tertiary">Loading...</div>
       </main>
     );
   }
 
   return (
-    <main className="p-6 md:p-8 max-w-4xl mx-auto">
+    <main className="p-4 md:p-6 lg:p-8 max-w-4xl mx-auto">
       {/* Debug info */}
-      <details className="mb-6 rounded-xl border border-black/5 bg-black/[0.02] p-4">
-        <summary className="text-sm font-medium text-sf-text-secondary cursor-pointer">Debug Info</summary>
-        <div className="mt-3 space-y-2 text-xs font-mono">
+      <details className="mb-4 sm:mb-6 rounded-xl border border-black/5 bg-black/[0.02] p-3 sm:p-4">
+        <summary className="text-xs sm:text-sm font-medium text-sf-text-secondary cursor-pointer">Debug Info</summary>
+        <div className="mt-2 sm:mt-3 space-y-1 sm:space-y-2 text-[10px] sm:text-xs font-mono">
           <p><strong>Email:</strong> {userEmail}</p>
           <p><strong>GitHub Username:</strong> {githubUsername}</p>
           <p><strong>Metadata:</strong> {JSON.stringify(userMetadata)}</p>
@@ -156,14 +156,14 @@ export default function NewRepositoryPage() {
         </div>
       </details>
 
-      <header className="mb-8">
-        <h1 className="text-2xl font-semibold text-sf-text-primary tracking-tight">
+      <header className="mb-6 sm:mb-8">
+        <h1 className="text-xl sm:text-2xl font-semibold text-sf-text-primary tracking-tight">
           Connect Repository
         </h1>
-        <p className="text-sm text-sf-text-secondary mt-1">
+        <p className="text-xs sm:text-sm text-sf-text-secondary mt-1">
           Select a GitHub repository to enable Krypta AI Security Scanning.
         </p>
-        <p className="text-sm text-sf-text-tertiary mt-1">
+        <p className="text-xs text-sf-text-tertiary mt-1">
           You must first{' '}
           <a
             href={`https://github.com/apps/krypta/installations/new`}
@@ -177,67 +177,67 @@ export default function NewRepositoryPage() {
         </p>
       </header>
 
-      <div className="rounded-[28px] border border-black/5 bg-white p-6 md:p-8 shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_14px_30px_-18px_rgba(35,36,39,0.25)]">
+      <div className="rounded-[28px] border border-black/5 bg-white p-4 sm:p-6 md:p-8 shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_14px_30px_-18px_rgba(35,36,39,0.25)]">
         {errorMsg && (
-          <div className="mb-6 flex items-center gap-3 rounded-full bg-red-50 border border-red-200 px-4 py-3">
-            <AlertCircle className="h-4 w-4 text-red-500 shrink-0" />
-            <p className="text-red-600 text-sm">{errorMsg}</p>
+          <div className="mb-4 sm:mb-6 flex items-center gap-3 rounded-full bg-red-50 border border-red-200 px-3 sm:px-4 py-2.5 sm:py-3">
+            <AlertCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-red-500 shrink-0" />
+            <p className="text-red-600 text-xs sm:text-sm">{errorMsg}</p>
           </div>
         )}
 
         {connectError && (
-          <div className="mb-6 flex items-center gap-3 rounded-full bg-red-50 border border-red-200 px-4 py-3">
-            <AlertCircle className="h-4 w-4 text-red-500 shrink-0" />
-            <p className="text-red-600 text-sm">{connectError}</p>
+          <div className="mb-4 sm:mb-6 flex items-center gap-3 rounded-full bg-red-50 border border-red-200 px-3 sm:px-4 py-2.5 sm:py-3">
+            <AlertCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-red-500 shrink-0" />
+            <p className="text-red-600 text-xs sm:text-sm">{connectError}</p>
           </div>
         )}
 
         {/* Search & Sync */}
-        <div className="flex items-center gap-3 mb-6">
+        <div className="flex items-center gap-3 mb-4 sm:mb-6">
           <div className="relative flex-1">
             <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-sf-text-tertiary" />
             <input
               type="text"
               placeholder="Search your repositories..."
-              className="w-full rounded-full border border-black/10 bg-white pl-9 pr-4 py-3 text-sm outline-none placeholder:text-sf-text-tertiary shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_8px_20px_-12px_rgba(35,36,39,0.25)] transition-all focus:border-sf-accent/50 focus:ring-2 focus:ring-sf-accent/20"
+              className="w-full rounded-full border border-black/10 bg-white pl-9 pr-4 py-2.5 sm:py-3 text-sm outline-none placeholder:text-sf-text-tertiary shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_8px_20px_-12px_rgba(35,36,39,0.25)] transition-all focus:border-sf-accent/50 focus:ring-2 focus:ring-sf-accent/20"
             />
           </div>
         </div>
 
         {/* Repo list */}
-        <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+        <div className="space-y-2.5 sm:space-y-3 max-h-[45vh] sm:max-h-[60vh] overflow-y-auto pr-1">
           {repos.map((repo) => (
             <div
               key={repo.githubRepoId}
-              className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-black/5 bg-black/[0.02] px-5 py-4 transition-colors hover:bg-black/[0.04]"
+              className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 rounded-xl border border-black/5 bg-black/[0.02] px-4 py-3 sm:px-5 sm:py-4 transition-colors hover:bg-black/[0.04]"
             >
-              <div className="flex items-center gap-3">
-                <GitBranch className="h-5 w-5 text-sf-text-tertiary shrink-0" />
-                <span className="text-sm font-medium text-sf-text-primary">
+              <div className="flex items-center gap-2.5 sm:gap-3">
+                <GitBranch className="h-4.5 w-4.5 sm:h-5 sm:w-5 text-sf-text-tertiary shrink-0" />
+                <span className="text-xs sm:text-sm font-medium text-sf-text-primary">
                   {repo.name}
                 </span>
               </div>
 
               {repo.isConnected ? (
-                <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1.5 text-xs font-medium text-emerald-700">
-                  <ShieldCheck className="h-3.5 w-3.5" />
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 sm:px-3 py-1 text-[10px] sm:text-xs font-medium text-emerald-700 shrink-0">
+                  <ShieldCheck className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                   Scanning Enabled
                 </div>
               ) : (
                 <button
                   onClick={() => connectRepo(repo)}
                   disabled={isConnecting}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-[#171719] px-3 py-1.5 text-xs font-medium text-white shadow-[0_1px_0_rgba(255,255,255,0.2)_inset,0_8px_18px_-10px_rgba(23,23,25,0.5)] transition-all hover:-translate-y-0.5 disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-[#171719] px-2.5 sm:px-3 py-1.5 text-[10px] sm:text-xs font-medium text-white shadow-[0_1px_0_rgba(255,255,255,0.2)_inset,0_8px_18px_-10px_rgba(23,23,25,0.5)] transition-all hover:-translate-y-0.5 disabled:opacity-50 shrink-0"
                 >
-                  <Plus className="h-3.5 w-3.5" />
+                  <Plus className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                   {isConnecting ? "Connecting..." : "Connect"}
                 </button>
               )}
             </div>
           ))}
           {repos.length === 0 && !errorMsg && (
-            <div className="text-center py-8 space-y-3">
-              <p className="text-sm text-sf-text-tertiary">
+            <div className="text-center py-6 sm:py-8 space-y-3">
+              <p className="text-xs sm:text-sm text-sf-text-tertiary">
                 {githubUsername
                   ? `No repositories found for @${githubUsername}.`
                   : "Unable to determine your GitHub username."
@@ -247,7 +247,7 @@ export default function NewRepositoryPage() {
                 href={`https://github.com/apps/krypta/installations/new`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 rounded-full bg-[#171719] px-5 py-3 text-sm font-medium text-white transition-all hover:-translate-y-0.5"
+                className="inline-flex items-center gap-2 rounded-full bg-[#171719] px-4 sm:px-5 py-2.5 sm:py-3 text-xs sm:text-sm font-medium text-white transition-all hover:-translate-y-0.5"
               >
                 Install Krypta GitHub App
               </a>
@@ -256,8 +256,8 @@ export default function NewRepositoryPage() {
         </div>
 
         {/* Info */}
-        <div className="mt-8 pt-6 border-t border-black/5 flex items-start gap-3 text-sm text-sf-text-secondary">
-          <ShieldCheck className="h-5 w-5 text-sf-accent shrink-0 mt-0.5" />
+        <div className="mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-black/5 flex items-start gap-2.5 sm:gap-3 text-xs sm:text-sm text-sf-text-secondary">
+          <ShieldCheck className="h-4.5 w-4.5 sm:h-5 sm:w-5 text-sf-accent shrink-0 mt-0.5" />
           <p>
             Install the Krypta GitHub App on your GitHub account to enable automatic
             scanning on every push and pull request. We only request read access to

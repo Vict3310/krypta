@@ -120,3 +120,38 @@ export type ExploitResult = {
   error_message: string | null;
   created_at: string;
 };
+
+export type VulnerabilityVerification = {
+  id: string;
+  vulnerability_id: string;
+  job_id: string;
+  is_real_exploit: boolean;
+  confidence: number;
+  reasoning: string;
+  missing_indicators: string[];
+  suggested_tests: string[];
+  created_at: string;
+};
+
+export type FixReview = {
+  id: string;
+  vulnerability_id: string;
+  pass: boolean;
+  score: number;
+  confidence: number;
+  issues: string[];
+  suggestions: string[];
+  security_risks: string[];
+  created_at: string;
+};
+
+export type VulnerabilityTriage = {
+  id: string;
+  scan_id: string;
+  vulnerability_id: string;
+  priority_score: number;
+  reasoning: string;
+  exploit_chain: string;
+  remediation_order: number;
+  created_at: string;
+};

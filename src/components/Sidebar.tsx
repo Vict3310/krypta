@@ -56,42 +56,42 @@ export function Sidebar() {
 
       {/* Sidebar */}
       <aside
-        className={`w-64 h-screen bg-sf-bg-secondary border-r border-black/5 flex flex-col fixed left-0 top-0 z-40 transition-transform duration-300 ${isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+        className={`w-60 sm:w-64 h-screen bg-sf-bg-secondary border-r border-black/5 flex flex-col fixed left-0 top-0 z-40 transition-transform duration-300 ${isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
           }`}
       >
         {/* Logo */}
-        <div className="p-6 flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-sf-accent to-[#F05A3C]">
-            <Zap className="h-4 w-4 text-white" />
+        <div className="px-4 sm:px-6 py-4 sm:py-6 flex items-center gap-2 sm:gap-3">
+          <div className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-gradient-to-br from-sf-accent to-[#F05A3C]">
+            <Zap className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-white" />
           </div>
-          <span className="text-lg font-semibold text-sf-text-primary">Krypta</span>
+          <span className="text-base sm:text-lg font-semibold text-sf-text-primary">Krypta</span>
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 px-4 py-4 space-y-1">
+        <nav className="flex-1 px-3 sm:px-4 py-3 sm:py-4 space-y-1">
           {navLinks.map((link) => (
             <Link
               key={link.href}
               onClick={() => setIsOpen(false)}
               href={link.href}
-              className="flex items-center gap-3 px-4 py-2.5 rounded-full text-sm font-medium text-sf-text-secondary hover:text-sf-text-primary hover:bg-black/5 transition-colors"
+              className="flex items-center gap-2 sm:gap-3 px-3 py-2 sm:px-4 sm:py-2.5 rounded-full text-[13px] sm:text-sm font-medium text-sf-text-secondary hover:text-sf-text-primary hover:bg-black/5 transition-colors"
             >
-              <link.icon className="h-4.5 w-4.5" />
+              <link.icon className="h-4 w-4" />
               {link.label}
             </Link>
           ))}
         </nav>
 
         {/* Bottom */}
-        <div className="p-4 space-y-1">
+        <div className="px-3 sm:px-4 py-3 sm:py-4 space-y-1">
           {bottomLinks.map((link) => (
             <Link
               key={link.href}
               onClick={() => setIsOpen(false)}
               href={link.href}
-              className="flex items-center gap-3 px-4 py-2.5 rounded-full text-sm font-medium text-sf-text-secondary hover:text-sf-text-primary hover:bg-black/5 transition-colors"
+              className="flex items-center gap-2 sm:gap-3 px-3 py-2 sm:px-4 sm:py-2.5 rounded-full text-[13px] sm:text-sm font-medium text-sf-text-secondary hover:text-sf-text-primary hover:bg-black/5 transition-colors"
             >
-              <link.icon className="h-4.5 w-4.5" />
+              <link.icon className="h-4 w-4" />
               {link.label}
             </Link>
           ))}
@@ -99,24 +99,24 @@ export function Sidebar() {
 
         {/* User profile */}
         {user && (
-          <div className="p-4 border-t border-black/5">
-            <div className="flex items-center gap-3">
+          <div className="px-3 sm:px-4 py-3 sm:py-4 border-t border-black/5">
+            <div className="flex items-center gap-2 sm:gap-3">
               {user.user_metadata?.avatar_url || user.avatar_url ? (
                 <img
                   src={user.user_metadata?.avatar_url || user.avatar_url}
                   alt="Profile"
-                  className="h-9 w-9 rounded-full ring-2 ring-black/5 object-cover"
+                  className="h-8 w-8 sm:h-9 sm:w-9 rounded-full ring-2 ring-black/5 object-cover"
                 />
               ) : (
-                <div className="h-9 w-9 rounded-full bg-gradient-to-br from-sf-accent to-[#F05A3C] flex items-center justify-center text-white text-sm font-semibold ring-2 ring-black/5">
+                <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-gradient-to-br from-sf-accent to-[#F05A3C] flex items-center justify-center text-white text-xs sm:text-sm font-semibold ring-2 ring-black/5">
                   {(user.email?.[0] ?? "U").toUpperCase()}
                 </div>
               )}
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-sf-text-primary truncate">
+                <p className="text-[13px] sm:text-sm font-medium text-sf-text-primary truncate">
                   {user.email?.split("@")[0] ?? "User"}
                 </p>
-                <p className="text-xs text-sf-text-tertiary truncate">
+                <p className="text-[11px] sm:text-xs text-sf-text-tertiary truncate">
                   {user.email ?? ""}
                 </p>
               </div>

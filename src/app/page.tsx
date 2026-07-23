@@ -121,18 +121,18 @@ function Navigation() {
 
 function Hero() {
   return (
-    <section className="relative pt-32 pb-20 px-6 max-w-7xl mx-auto flex flex-col items-center text-center z-10 min-h-[95vh] justify-center">
+    <section className="relative pt-24 sm:pt-32 pb-12 sm:pb-20 px-4 sm:px-6 max-w-7xl mx-auto flex flex-col items-center text-center z-10 min-h-[90vh] sm:min-h-[95vh] justify-center">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -right-40 top-20 h-[500px] w-[500px] rounded-full bg-gradient-to-bl from-sf-accent/15 to-transparent blur-3xl opacity-60" />
-        <div className="absolute -left-40 bottom-20 h-[400px] w-[400px] rounded-full bg-gradient-to-tr from-[#F05A3C]/10 to-transparent blur-3xl opacity-50" />
+        <div className="absolute -right-20 top-10 sm:-right-40 sm:top-20 h-[250px] w-[250px] sm:h-[500px] sm:w-[500px] rounded-full bg-gradient-to-bl from-sf-accent/15 to-transparent blur-2xl sm:blur-3xl opacity-40 sm:opacity-60" />
+        <div className="absolute -left-20 bottom-10 sm:-bottom-40 sm:bottom-20 h-[200px] w-[200px] sm:h-[400px] sm:w-[400px] rounded-full bg-gradient-to-tr from-[#F05A3C]/10 to-transparent blur-2xl sm:blur-3xl opacity-30 sm:opacity-50" />
       </div>
 
-      <div className="inline-flex items-center gap-2 rounded-full border border-black/5 bg-white/80 px-4 py-2 text-xs font-medium text-sf-accent backdrop-blur shadow-[0_6px_16px_-8px_rgba(35,36,39,0.25)]">
-        <Sparkles className="h-3.5 w-3.5" />
+      <div className="inline-flex items-center gap-2 rounded-full border border-black/5 bg-white/80 px-3 py-1.5 sm:px-4 sm:py-2 text-[10px] sm:text-xs font-medium text-sf-accent backdrop-blur shadow-[0_6px_16px_-8px_rgba(35,36,39,0.25)]">
+        <Sparkles className="h-3 sm:h-3.5 w-3 sm:w-3.5" />
         AI-Powered Penetration Testing — Coming Soon
       </div>
 
-      <h1 className="mt-6 text-5xl font-semibold leading-[1.1] tracking-tight text-[#2E3034] sm:text-6xl lg:text-7xl xl:text-8xl wchar max-w-5xl">
+      <h1 className="mt-4 sm:mt-6 text-3xl sm:text-5xl font-semibold leading-[1.15] sm:leading-[1.1] tracking-tight text-[#2E3034] sm:text-6xl lg:text-7xl xl:text-8xl wchar max-w-[90%] sm:max-w-5xl">
         Krypta attacks
         <br />
         <span className="relative inline-block">
@@ -146,29 +146,29 @@ function Hero() {
         escalation. If it gets in, you get a full report with details.
       </p>
 
-      <div className="mt-8 flex flex-col gap-4 sm:flex-row">
+      <div className="mt-6 sm:mt-8 flex flex-col gap-3 sm:flex-row">
         <Link
           href="/dashboard"
-          className="group inline-flex items-center justify-center gap-2 rounded-full bg-sf-accent px-8 py-4 text-base font-medium text-white shadow-[0_14px_36px_-12px_rgba(227,74,50,0.55)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_20px_44px_-12px_rgba(227,74,50,0.65)]"
+          className="group inline-flex items-center justify-center gap-2 rounded-full bg-sf-accent px-6 py-3 sm:px-8 sm:py-4 text-sm sm:text-base font-medium text-white shadow-[0_14px_36px_-12px_rgba(227,74,50,0.55)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_20px_44px_-12px_rgba(227,74,50,0.65)]"
         >
           Join the Waitlist
-          <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-0.5" />
+          <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5 transition-transform group-hover:translate-x-0.5" />
         </Link>
         <a
           href="#how"
-          className="inline-flex items-center justify-center gap-2 rounded-full border border-black/10 bg-white/80 px-8 py-4 text-base font-medium text-[#2E3034] shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_4px_12px_-8px_rgba(35,36,39,0.3)] transition-all duration-300 hover:bg-white/90"
+          className="inline-flex items-center justify-center gap-2 rounded-full border border-black/10 bg-white/80 px-6 py-3 sm:px-8 sm:py-4 text-sm sm:text-base font-medium text-[#2E3034] shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_4px_12px_-8px_rgba(35,36,39,0.3)] transition-all duration-300 hover:bg-white/90"
         >
-          <Terminal className="h-5 w-5" />
+          <Terminal className="h-4 w-4 sm:h-5 sm:w-5" />
           See how it works
         </a>
       </div>
 
-      <div className="mt-10 flex flex-col items-center gap-3">
+      <div className="mt-6 sm:mt-10 flex flex-col items-center gap-2 sm:gap-3">
         <div className="flex -space-x-2">
           {["from-sf-accent/30 to-sf-accent/60", "from-blue-400 to-blue-600", "from-emerald-400 to-emerald-600", "from-purple-400 to-purple-600"].map((g, i) => (
-            <div key={i} className={`h-8 w-8 rounded-full ring-2 ring-white bg-gradient-to-tr ${g}`} />
+            <div key={i} className={`h-7 w-7 sm:h-8 sm:w-8 rounded-full ring-2 ring-white bg-gradient-to-tr ${g}`} />
           ))}
-          <div className="h-8 w-8 rounded-full ring-2 ring-white bg-[#F7F7F5] flex items-center justify-center text-[9px] font-medium text-[#55575c]">
+          <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-full ring-2 ring-white bg-[#F7F7F5] flex items-center justify-center text-[10px] sm:text-[9px] font-medium text-[#55575c]">
             +2k
           </div>
         </div>
@@ -177,7 +177,7 @@ function Hero() {
         </p>
       </div>
 
-      <div className="mt-16 w-full max-w-3xl">
+      <div className="mt-10 sm:mt-16 w-full max-w-3xl">
         <TerminalWidget />
       </div>
     </section>

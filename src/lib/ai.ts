@@ -1,5 +1,5 @@
 import { generateObject } from "ai";
-import { openai } from "@ai-sdk/openai";
+import { zgModel } from "./ai-0g";
 import { z } from "zod";
 
 const VulnerabilitySchema = z.object({
@@ -60,7 +60,7 @@ export async function scanCodeSnippet(code: string, filename: string, rules?: Sc
     }
 
     const { object } = await generateObject({
-      model: openai("gpt-4o"),
+      model: zgModel(),
       schema: VulnerabilitySchema,
       system: `You are Krypta, an expert AI security researcher. Analyze the following code snippet for security vulnerabilities.
       If you find a vulnerability, explain it in plain English with zero false positives.

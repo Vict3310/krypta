@@ -21,7 +21,7 @@ export default function DocsLayout({
               <span className="font-semibold text-sf-text-primary">Krypta</span>
             </a>
           </div>
-          <nav className="p-4">
+          <nav className="p-3 sm:p-4">
             <div className="mb-6">
               <h3 className="px-3 mb-2 text-xs font-semibold text-sf-text-tertiary uppercase tracking-wider">
                 Getting Started

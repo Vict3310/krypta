@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { ArrowLeft, ShieldAlert, CheckCircle2, Clock, X } from "lucide-react";
+import { ArrowLeft, ShieldAlert, CheckCircle2, Clock, X, Brain, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/utils/supabase/client";
-import type { Scan, Vulnerability } from "@/lib/types";
+import type { Scan, Vulnerability, VulnerabilityTriage, FixReview } from "@/lib/types";
 
 interface VulnerabilityTimelineEvent {
   status: string;
@@ -19,6 +19,10 @@ export default function ScanDetailPage({ params }: { params: Promise<{ id: strin
   const [vulnerabilities, setVulnerabilities] = useState<Vulnerability[]>([]);
   const [selected, setSelected] = useState<Vulnerability | null>(null);
   const [loading, setLoading] = useState(true);
+  const [aiTriage, setAiTriage] = useState<VulnerabilityTriage[]>([]);
+  const [aiTriageLoading, setAiTriageLoading] = useState(false);
+  const [fixReviews, setFixReviews] = useState<Record<string, FixReview>>({});
+  const [fixReviewLoading, setFixReviewLoading] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     const load = async () => {
@@ -147,6 +151,66 @@ export default function ScanDetailPage({ params }: { params: Promise<{ id: strin
     toast("Snoozed for 30 days", { description: "You won't be reminded about this until then." });
   };
 
+  const handleAiTriage = async () => {
+    setAiTriageLoading(true);
+    try {
+      const { id } = await params;
+      const res = await fetch("/api/ai/triage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scanId: id }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        toast.error(data.error || "AI triage failed");
+        return;
+      }
+
+      const data = await res.json();
+      setAiTriage(data.vulnerabilities ?? []);
+      toast.success("AI prioritization complete");
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setAiTriageLoading(false);
+    }
+  };
+
+  const handleAiReviewFix = async (vuln: Vulnerability) => {
+    setFixReviewLoading((prev) => ({ ...prev, [vuln.id]: true }));
+    try {
+      const res = await fetch("/api/ai/review-fix", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vulnerabilityId: vuln.id }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        toast.error(data.error || "AI fix review failed");
+        return;
+      }
+
+      const data = await res.json();
+      setFixReviews((prev) => ({ ...prev, [vuln.id]: data.review }));
+      toast.success("AI fix review complete");
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setFixReviewLoading((prev) => ({ ...prev, [vuln.id]: false }));
+    }
+  };
+
+  const getTriageInfo = (vulnId: string) => aiTriage.find((t) => t.vulnerability_id === vulnId);
+  const getFixReview = (vulnId: string) => fixReviews[vulnId];
+  const getPriorityColor = (score: number) => {
+    if (score >= 80) return "text-red-600 bg-red-50 border-red-200";
+    if (score >= 60) return "text-orange-600 bg-orange-50 border-orange-200";
+    if (score >= 40) return "text-amber-600 bg-amber-50 border-amber-200";
+    return "text-blue-600 bg-blue-50 border-blue-200";
+  };
+
   const severityStyle: Record<string, string> = {
     Critical: "bg-red-50 text-red-700 border-red-200",
     High: "bg-orange-50 text-orange-700 border-orange-200",
@@ -197,7 +261,7 @@ export default function ScanDetailPage({ params }: { params: Promise<{ id: strin
 
   if (loading) {
     return (
-      <main className="p-8 flex items-center justify-center min-h-screen">
+      <main className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto flex items-center justify-center min-h-screen">
         <div className="h-8 w-8 border-2 border-sf-accent border-t-transparent rounded-full animate-spin" />
       </main>
     );
@@ -205,7 +269,7 @@ export default function ScanDetailPage({ params }: { params: Promise<{ id: strin
 
   if (!scan)
     return (
-      <main className="p-8 text-center text-sf-text-secondary">
+      <main className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto text-center text-sf-text-secondary">
         Scan not found.{" "}
         <Link href="/dashboard/scans" className="text-sf-accent underline">
           Go back
@@ -216,27 +280,27 @@ export default function ScanDetailPage({ params }: { params: Promise<{ id: strin
   const repoName = (scan as Scan & { repositories: { full_name: string } }).repositories?.full_name;
 
   return (
-    <main className="p-6 md:p-8 max-w-7xl mx-auto">
+    <main className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
       <Link
         href="/dashboard/scans"
-        className="inline-flex items-center text-sm text-sf-text-secondary hover:text-sf-text-primary transition-colors mb-6 mt-2"
+        className="inline-flex items-center text-sm text-sf-text-secondary hover:text-sf-text-primary transition-colors mb-4 md:mb-6 mt-2"
       >
         <ArrowLeft className="h-4 w-4 mr-2" />
         Back to Scans
       </Link>
 
-      <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8 gap-4">
+      <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 md:mb-8 gap-4">
         <div>
           {repoName && (
-            <span className="text-sm text-sf-text-tertiary">{repoName}</span>
+            <span className="text-xs sm:text-sm text-sf-text-tertiary">{repoName}</span>
           )}
-          <h1 className="text-2xl font-semibold text-sf-text-primary tracking-tight mt-1">
+          <h1 className="text-xl md:text-2xl font-semibold text-sf-text-primary tracking-tight mt-1">
             {vulnerabilities.length === 0
               ? "Clean Scan ✅"
               : `${vulnerabilities.length} Vulnerabilit${vulnerabilities.length === 1 ? "y" : "ies"} Found`}
           </h1>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           {scan.status === "vulnerable" && (
             <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-red-50 text-red-700 border border-red-200">
               Vulnerable
@@ -247,29 +311,53 @@ export default function ScanDetailPage({ params }: { params: Promise<{ id: strin
               Clean
             </span>
           )}
-          <span className="text-sm text-sf-text-tertiary">
+          <span className="text-xs text-sf-text-tertiary">
             {new Date(scan.triggered_at).toLocaleString()}
           </span>
+          {vulnerabilities.length > 0 && (
+            <button
+              onClick={handleAiTriage}
+              disabled={aiTriageLoading || aiTriage.length > 0}
+              className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-sf-accent/10 to-orange-500/10 border border-sf-accent/20 px-3 py-1.5 text-xs font-medium text-sf-accent shadow-sm transition-all hover:from-sf-accent/15 hover:to-orange-500/15 disabled:opacity-50 shrink-0"
+            >
+              {aiTriageLoading ? (
+                <>
+                  <Clock className="h-3 w-3 animate-spin" />
+                  Prioritizing...
+                </>
+              ) : aiTriage.length > 0 ? (
+                <>
+                  <CheckCircle2 className="h-3 w-3" />
+                  AI Prioritized
+                </>
+              ) : (
+                <>
+                  <Brain className="h-3 w-3" />
+                  AI Prioritize
+                </>
+              )}
+            </button>
+          )}
         </div>
       </header>
 
       {vulnerabilities.length === 0 ? (
-        <div className="flex flex-col items-center justify-center flex-1 py-24">
-          <CheckCircle2 className="h-16 w-16 text-emerald-500 mb-4" />
-          <p className="text-sf-text-primary text-xl font-semibold mb-2">
+        <div className="flex flex-col items-center justify-center flex-1 py-16 sm:py-24">
+          <CheckCircle2 className="h-12 w-12 sm:h-16 sm:w-16 text-emerald-500 mb-3 sm:mb-4" />
+          <p className="text-sf-text-primary text-lg sm:text-xl font-semibold mb-2">
             No vulnerabilities detected
           </p>
-          <p className="text-sf-text-secondary">This scan came back completely clean.</p>
+          <p className="text-sf-text-secondary text-sm sm:text-base">This scan came back completely clean.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
           {/* Vulnerability list */}
           <div className="lg:col-span-1 space-y-2">
             {vulnerabilities.map((v) => (
               <button
                 key={v.id}
                 onClick={() => setSelected(v)}
-                className={`w-full text-left rounded-xl border p-4 transition-all ${selected?.id === v.id
+                className={`w-full text-left rounded-xl border p-3 sm:p-4 transition-all ${selected?.id === v.id
                   ? "border-sf-accent/30 bg-sf-accent/5 shadow-[0_0_20px_-10px_rgba(227,74,50,0.2)]"
                   : "border-black/5 bg-white hover:bg-black/[0.02]"
                   }`}
@@ -281,6 +369,16 @@ export default function ScanDetailPage({ params }: { params: Promise<{ id: strin
                   >
                     {v.severity}
                   </span>
+                  {aiTriage.length > 0 && (() => {
+                    const triage = getTriageInfo(v.id);
+                    if (!triage) return null;
+                    const color = getPriorityColor(triage.priority_score);
+                    return (
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${color}`}>
+                        P{Math.round(triage.priority_score)}
+                      </span>
+                    );
+                  })()}
                   {v.status !== "open" && (
                     <span className="text-xs text-sf-text-tertiary capitalize">{v.status}</span>
                   )}
@@ -299,24 +397,24 @@ export default function ScanDetailPage({ params }: { params: Promise<{ id: strin
           {/* Detail panel */}
           {selected && (
             <div className="lg:col-span-2 space-y-4">
-              <div className="rounded-[28px] border border-black/5 bg-white p-6 shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_14px_30px_-18px_rgba(35,36,39,0.25)]">
-                <div className="flex items-start justify-between mb-4">
-                  <h2 className="text-lg font-semibold text-sf-text-primary flex items-center gap-2">
-                    <ShieldAlert className="h-5 w-5 text-sf-accent" />
+              <div className="rounded-[28px] border border-black/5 bg-white p-4 sm:p-6 shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_14px_30px_-18px_rgba(35,36,39,0.25)]">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-4 gap-3">
+                  <h2 className="text-base sm:text-lg font-semibold text-sf-text-primary flex items-center gap-2">
+                    <ShieldAlert className="h-4 w-4 sm:h-5 sm:w-5 text-sf-accent" />
                     {selected.vulnerability_type}
                   </h2>
                   {selected.status === "open" && (
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 shrink-0">
                       <button
                         onClick={() => handleSnooze(selected)}
-                        className="inline-flex items-center gap-1 rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs font-medium text-sf-text-secondary shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_8px_18px_-10px_rgba(35,36,39,0.3)] transition-all hover:bg-black/5"
+                        className="inline-flex items-center gap-1 rounded-full border border-black/10 bg-white px-2.5 py-1.5 sm:px-3 sm:py-1.5 text-[11px] sm:text-xs font-medium text-sf-text-secondary shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_8px_18px_-10px_rgba(35,36,39,0.3)] transition-all hover:bg-black/5"
                       >
                         <Clock className="h-3 w-3" />
                         Snooze
                       </button>
                       <button
                         onClick={() => handleDismiss(selected)}
-                        className="inline-flex items-center gap-1 rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs font-medium text-red-600 shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_8px_18px_-10px_rgba(35,36,39,0.3)] transition-all hover:bg-red-50"
+                        className="inline-flex items-center gap-1 rounded-full border border-black/10 bg-white px-2.5 py-1.5 sm:px-3 sm:py-1.5 text-[11px] sm:text-xs font-medium text-red-600 shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_8px_18px_-10px_rgba(35,36,39,0.3)] transition-all hover:bg-red-50"
                       >
                         <X className="h-3 w-3" />
                         Dismiss
@@ -333,25 +431,105 @@ export default function ScanDetailPage({ params }: { params: Promise<{ id: strin
                     {selected.line ? `:${selected.line}` : ""}
                   </p>
                 )}
+
+                {/* AI Fix Review */}
+                {selected.fixed_code && (
+                  <div className="mt-4 rounded-xl border border-black/5 bg-white p-3 sm:p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-xs sm:text-sm font-semibold text-sf-text-primary flex items-center gap-1.5">
+                        <Sparkles className="h-3.5 w-3.5 text-sf-accent" />
+                        AI Fix Review
+                      </h4>
+                      <button
+                        onClick={() => handleAiReviewFix(selected)}
+                        disabled={fixReviewLoading[selected.id]}
+                        className="inline-flex items-center gap-1.5 rounded-full bg-[#171719] text-white px-2.5 py-1.5 sm:px-3 sm:py-1.5 text-[10px] sm:text-xs font-medium shadow-sm transition-all hover:-translate-y-0.5 disabled:opacity-50 shrink-0"
+                      >
+                        {fixReviewLoading[selected.id] ? (
+                          <>
+                            <Clock className="h-3 w-3 animate-spin" />
+                            Reviewing...
+                          </>
+                        ) : getFixReview(selected.id) ? (
+                          <>
+                            <Sparkles className="h-3 w-3" />
+                            Re-review
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="h-3 w-3" />
+                            Review Fix
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {getFixReview(selected.id) ? (() => {
+                      const review = getFixReview(selected.id)!;
+                      return (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            {review.pass ? (
+                              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                            ) : (
+                              <X className="h-4 w-4 text-red-500" />
+                            )}
+                            <span className={`text-sm font-semibold ${review.pass ? "text-emerald-600" : "text-red-600"}`}>
+                              {review.pass ? "Fix looks good" : "Issues found"}
+                            </span>
+                            <span className="text-[10px] text-sf-text-tertiary">Score: {review.score}/10 · Confidence: {Math.round(review.confidence * 100)}%</span>
+                          </div>
+
+                          {review.issues && review.issues.length > 0 && (
+                            <div className="rounded-lg bg-red-50 p-2.5 border border-red-100">
+                              <p className="text-xs font-medium text-red-700 mb-1">Issues:</p>
+                              {review.issues.map((issue, i) => (
+                                <p key={i} className="text-[11px] text-red-600">• {issue}</p>
+                              ))}
+                            </div>
+                          )}
+
+                          {review.suggestions && review.suggestions.length > 0 && (
+                            <div className="rounded-lg bg-blue-50 p-2.5 border border-blue-100">
+                              <p className="text-xs font-medium text-blue-700 mb-1">Suggestions:</p>
+                              {review.suggestions.map((s, i) => (
+                                <p key={i} className="text-[11px] text-blue-600">• {s}</p>
+                              ))}
+                            </div>
+                          )}
+
+                          {review.security_risks && review.security_risks.length > 0 && (
+                            <div className="rounded-lg bg-orange-50 p-2.5 border border-orange-100">
+                              <p className="text-xs font-medium text-orange-700 mb-1">Security Risks:</p>
+                              {review.security_risks.map((r, i) => (
+                                <p key={i} className="text-[11px] text-orange-600">• {r}</p>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })() : null}
+                  </div>
+                )}
               </div>
 
               {/* Vulnerability Timeline */}
-              <div className="rounded-[28px] border border-black/5 bg-white p-6 shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_14px_30px_-18px_rgba(35,36,39,0.25)]">
-                <h3 className="text-sm font-semibold text-sf-text-primary mb-4 flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-sf-accent" />
+              <div className="rounded-[28px] border border-black/5 bg-white p-4 sm:p-6 shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_14px_30px_-18px_rgba(35,36,39,0.25)]">
+                <h3 className="text-sm font-semibold text-sf-text-primary mb-3 sm:mb-4 flex items-center gap-2">
+                  <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-sf-accent" />
                   Vulnerability Timeline
                 </h3>
-                <div className="relative pl-4 space-y-4 before:absolute before:left-[15px] before:top-2 before:bottom-2 before:w-0.5 before:bg-gray-200">
+                <div className="relative pl-4 space-y-3 sm:space-y-4 before:absolute before:left-[15px] before:top-2 before:bottom-2 before:w-0.5 before:bg-gray-200">
                   {buildTimeline(selected).map((event, idx) => {
                     const Icon = event.icon;
                     return (
                       <div key={idx} className="relative flex items-start gap-3">
-                        <div className="absolute -left-4 top-1 w-6 h-6 rounded-full bg-white border-2 border-gray-200 flex items-center justify-center z-10">
-                          <Icon className="h-3 w-3 text-gray-500" />
+                        <div className="absolute -left-4 top-1 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-white border-2 border-gray-200 flex items-center justify-center z-10">
+                          <Icon className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-gray-500" />
                         </div>
                         <div className="ml-4">
                           <p className="text-sm text-sf-text-primary">{event.label}</p>
-                          <p className="text-xs text-sf-text-tertiary">
+                          <p className="text-[11px] sm:text-xs text-sf-text-tertiary">
                             {new Date(event.timestamp).toLocaleString()}
                           </p>
                         </div>

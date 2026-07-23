@@ -119,9 +119,9 @@ export default function RootLayout({
       >
         {/* Atmosphere blobs */}
         <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
-          <div className="absolute -right-40 -top-40 h-[600px] w-[600px] rounded-full bg-gradient-to-bl from-sf-accent/12 to-transparent blur-3xl opacity-60" />
-          <div className="absolute -bottom-40 -left-40 h-[500px] w-[500px] rounded-full bg-gradient-to-tr from-[#F05A3C]/10 to-transparent blur-3xl opacity-50" />
-          <div className="absolute left-1/2 top-1/2 h-[400px] w-[400px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-br from-sf-accent/5 to-transparent blur-3xl opacity-40" />
+          <div className="absolute -right-20 -top-20 sm:-right-40 sm:-top-40 h-[250px] w-[250px] sm:h-[400px] sm:w-[400px] md:h-[600px] md:w-[600px] rounded-full bg-gradient-to-bl from-sf-accent/12 to-transparent blur-2xl sm:blur-3xl opacity-40 sm:opacity-60" />
+          <div className="absolute -bottom-20 -left-20 sm:-bottom-40 sm:-left-40 h-[200px] w-[200px] sm:h-[350px] sm:w-[350px] md:h-[500px] md:w-[500px] rounded-full bg-gradient-to-tr from-[#F05A3C]/10 to-transparent blur-2xl sm:blur-3xl opacity-30 sm:opacity-50" />
+          <div className="absolute left-1/2 top-1/2 h-[200px] w-[200px] sm:h-[300px] sm:w-[300px] md:h-[400px] md:w-[400px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-br from-sf-accent/5 to-transparent blur-xl sm:blur-3xl opacity-20 sm:opacity-40" />
         </div>
 
         <div className="relative z-10 w-full h-full">

@@ -99,15 +99,15 @@ export default function DocsPage() {
           return (
             <div
               key={section.title}
-              className="p-6 bg-white rounded-xl border border-black/10 hover:border-black/20 transition-colors"
+              className="p-4 sm:p-6 bg-white rounded-xl border border-black/10 hover:border-black/20 transition-colors"
             >
-              <div className="h-10 w-10 rounded-lg bg-sf-accent/10 flex items-center justify-center mb-4">
+              <div className="h-10 w-10 rounded-lg bg-sf-accent/10 flex items-center justify-center mb-3 sm:mb-4">
                 <Icon className="h-5 w-5 text-sf-accent" />
               </div>
-              <h2 className="text-lg font-semibold text-sf-text-primary mb-2">
+              <h2 className="text-base sm:text-lg font-semibold text-sf-text-primary mb-2">
                 {section.title}
               </h2>
-              <p className="text-sm text-sf-text-secondary mb-4">
+              <p className="text-xs sm:text-sm text-sf-text-secondary mb-3 sm:mb-4">
                 {section.description}
               </p>
               <ul className="space-y-2">
@@ -115,7 +115,7 @@ export default function DocsPage() {
                   <li key={item.href}>
                     <Link
                       href={item.href}
-                      className="text-sm text-sf-text-secondary hover:text-sf-accent transition-colors flex items-center gap-2"
+                      className="text-xs sm:text-sm text-sf-text-secondary hover:text-sf-accent transition-colors flex items-center gap-2"
                     >
                       <FileText className="h-3 w-3" />
                       {item.title}
