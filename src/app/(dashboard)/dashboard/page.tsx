@@ -23,6 +23,7 @@ function SeverityBadge({ status }: { status: string }) {
     fixed: "bg-blue-50 text-blue-700 border-blue-200",
     scanning: "bg-amber-50 text-amber-700 border-amber-200",
     pending: "bg-gray-100 text-gray-600 border-gray-200",
+    failed: "bg-orange-50 text-orange-700 border-orange-200",
   };
   return (
     <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border capitalize ${styles[status] ?? styles.pending}`}>
@@ -39,11 +40,17 @@ function ScanCard({ scan }: { scan: Scan & { repositories: { full_name: string }
       className="flex items-center justify-between py-3 px-4 hover:bg-black/[0.02] transition-colors rounded-lg"
     >
       <div className="flex items-center gap-3">
-        <div className={`p-2 rounded-lg ${scan.status === "clean" ? "bg-emerald-50" : scan.status === "vulnerable" ? "bg-red-50" : "bg-amber-50"}`}>
+        <div className={`p-2 rounded-lg ${scan.status === "clean" ? "bg-emerald-50" :
+            scan.status === "vulnerable" ? "bg-red-50" :
+              scan.status === "failed" ? "bg-orange-50" :
+                "bg-amber-50"
+          }`}>
           {scan.status === "clean" ? (
             <CheckCircle2 className="h-4 w-4 text-emerald-600" />
           ) : scan.status === "vulnerable" ? (
             <AlertTriangle className="h-4 w-4 text-red-600" />
+          ) : scan.status === "failed" ? (
+            <AlertCircle className="h-4 w-4 text-orange-600" />
           ) : (
             <Clock className="h-4 w-4 text-amber-600" />
           )}
@@ -63,50 +70,46 @@ function ScanCard({ scan }: { scan: Scan & { repositories: { full_name: string }
   );
 }
 
-// Scan now button
+// Scan now button with retry logic and better error handling
 function ScanNowButton({ repositoryId, onScanComplete }: { repositoryId: string; onScanComplete: () => void }) {
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY = 2000;
 
-  const handleScan = async () => {
-    console.log("[ScanNow] === Scan Now BUTTON CLICKED ===");
-    console.log("[ScanNow] repositoryId:", repositoryId);
-
+  const handleScan = async (retryCount = 0) => {
+    console.log("[ScanNow] repositoryId:", repositoryId, "attempt:", retryCount + 1);
     setScanning(true);
     setError(null);
     setResult(null);
-
-    const requestBody = JSON.stringify({ repositoryId });
-    console.log("[ScanNow] Request body:", requestBody);
-    console.log("[ScanNow] Calling /api/scan/trigger...");
 
     try {
       const res = await fetch("/api/scan/trigger", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: requestBody,
+        body: JSON.stringify({ repositoryId }),
       });
 
-      console.log("[ScanNow] Response status:", res.status);
-      console.log("[ScanNow] Response OK:", res.ok);
-
       const data = await res.json();
-      console.log("[ScanNow] Response body:", JSON.stringify(data, null, 2));
 
       if (!res.ok) {
-        console.error("[ScanNow] Scan failed — HTTP error:", res.status, data);
+        // Don't retry rate limits or auth errors
+        if (res.status === 429) throw new Error("Please wait 60 seconds between triggers");
+        if (data.details?.includes("DECODER") || data.details?.includes("EC") || data.details?.includes("RSA")) {
+          throw new Error("GitHub App auth failed. Check your environment variables and redeploy.");
+        }
+        // Retry on server errors
+        if (res.status >= 500 && retryCount < MAX_RETRIES) {
+          setTimeout(() => handleScan(retryCount + 1), RETRY_DELAY * (retryCount + 1));
+          return;
+        }
         throw new Error(data.error || data.details || `HTTP ${res.status}`);
       }
 
-      console.log("[ScanNow] Scan initiated successfully:", data.message);
-      setResult(data.message);
-      setTimeout(() => {
-        console.log("[ScanNow] Reloading page...");
-        onScanComplete();
-      }, 2000);
+      setResult(data.message || "Scan started");
+      setTimeout(() => onScanComplete(), 1000);
     } catch (err) {
-      console.error("[ScanNow] Scan failed with exception:", err);
       setError((err as Error).message);
       setScanning(false);
     }
@@ -133,9 +136,16 @@ function ScanNowButton({ repositoryId, onScanComplete }: { repositoryId: string;
       </button>
 
       {error && (
-        <div className="flex items-center gap-1 text-xs text-red-600">
-          <AlertCircle className="h-3 w-3" />
-          <span>{error}</span>
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-1 text-xs text-red-600">
+            <AlertCircle className="h-3 w-3 shrink-0" />
+            <span className="break-all">{error}</span>
+          </div>
+          {!error.includes("wait 60 seconds") && (
+            <button onClick={() => handleScan(0)} className="text-xs text-sf-text-secondary hover:text-sf-accent underline self-start">
+              Retry
+            </button>
+          )}
         </div>
       )}
 
