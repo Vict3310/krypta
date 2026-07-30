@@ -3,6 +3,8 @@ import { createServiceRoleClient } from "@/utils/supabase/service";
 import { createClient } from "@/utils/supabase/server";
 import { Octokit } from "octokit";
 import { createSign } from "node:crypto";
+import { generateObjectWithFallback } from "@/lib/ai-provider";
+import { z } from "zod";
 
 // GitHub App JWT token generator
 async function getGitHubAppToken(): Promise<string> {
@@ -372,79 +374,188 @@ export async function POST(req: Request) {
     // Auto-create exploit scan job for new vulnerabilities (Phase 2: exploit engine wiring)
     if (vulnResult && vulnResult.length > 0) {
       try {
-        console.log(`[Scan] Creating exploit scan job for ${vulnResult.length} vulnerabilities...`);
-        const repoUrl = `https://github.com/${repo.full_name}`;
+        // Phase 2.3: Generate AI fixes for vulnerabilities that lack them
+        await generateFixesForVulnerabilities(db, vulnResult);
 
-        // Clean up duplicate vulnerabilities (pattern matching may find the same issue multiple times)
-        const seen = new Set<string>();
-        const uniqueVulns = vulnResult.filter((v: any) => {
-          const key = `${v.file_path}:${v.vulnerability_type}:${v.line || 0}`;
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        });
-
-        if (uniqueVulns.length > 0) {
-          const { data: exploitJob, error: exploitError } = await db
-            .from("exploit_scan_jobs")
-            .insert({
-              user_id: session.user.id,
-              target_url: repoUrl,
-              vulnerability_ids: uniqueVulns.map((v: any) => v.id),
-              total_exploits: uniqueVulns.length,
-              status: "pending",
-            })
-            .select()
-            .single();
-
-          if (exploitError) {
-            console.error(`[Scan] Failed to create exploit scan job:`, exploitError.message);
-          } else {
-            console.log(`[Scan] Exploit scan job created: ${exploitJob.id}`);
-          }
-        }
-      } catch (exploitErr: any) {
-        console.error(`[Scan] Error creating exploit scan job:`, exploitErr.message);
-        // Non-critical — don't fail the scan
+        // Refresh vulnResult after fix generation
+        const { data: refreshedVulns } = await db
+          .from("vulnerabilities")
+          .select("*")
+          .in("id", vulnResult.map((v: any) => v.id));
+        vulnResult = refreshedVulns ?? vulnResult;
+      } catch (fixErr: any) {
+        console.error(`[Scan] Error generating fixes:`, fixErr.message);
+        // Non-critical — continue with exploit job creation
       }
+
+      console.log(`[Scan] Creating exploit scan job for ${vulnResult.length} vulnerabilities...`);
+      const repoUrl = `https://github.com/${repo.full_name}`;
+
+      // Clean up duplicate vulnerabilities (pattern matching may find the same issue multiple times)
+      const seen = new Set<string>();
+      const uniqueVulns = vulnResult.filter((v: any) => {
+        const key = `${v.file_path}:${v.vulnerability_type}:${v.line || 0}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+      if (uniqueVulns.length > 0) {
+        const { data: exploitJob, error: exploitError } = await db
+          .from("exploit_scan_jobs")
+          .insert({
+            user_id: session.user.id,
+            target_url: repoUrl,
+            vulnerability_ids: uniqueVulns.map((v: any) => v.id),
+            total_exploits: uniqueVulns.length,
+            status: "pending",
+          })
+          .select()
+          .single();
+
+        if (exploitError) {
+          console.error(`[Scan] Failed to create exploit scan job:`, exploitError.message);
+        } else {
+          console.log(`[Scan] Exploit scan job created: ${exploitJob.id}`);
+        }
+      }
+    } catch (exploitErr: any) {
+      console.error(`[Scan] Error creating exploit scan job:`, exploitErr.message);
+      // Non-critical — don't fail the scan
     }
+  }
 
     // Update scan status
     const finalStatus = totalFindings > 0 ? "vulnerable" : "clean";
-    console.log(`[Scan] Updating scan to ${finalStatus} status...`);
-    console.log(`[Scan] Update target: id=${scan.id}, repo_id=${repo.id}`);
-    try {
-      const { data: updateResult, error: statusError } = await db
-        .from("scans")
-        .update({ status: finalStatus })
-        .eq("id", scan.id)
-        .select()
-        .single();
-      console.log(`[Scan] Status update result:`, JSON.stringify({ data: updateResult, error: statusError }));
-      if (statusError) {
-        console.error(`[Scan] Status update error:`, statusError.message);
-      } else {
-        console.log(`[Scan] Scan ${scan.id} updated to ${finalStatus} (${totalFindings} findings)`);
-      }
-    } catch (statusError: any) {
-      console.error(`[Scan] Error updating scan status:`, statusError.message);
-      console.error(`[Scan] Error details:`, JSON.stringify(statusError, null, 2));
+  console.log(`[Scan] Updating scan to ${finalStatus} status...`);
+  console.log(`[Scan] Update target: id=${scan.id}, repo_id=${repo.id}`);
+  try {
+    const { data: updateResult, error: statusError } = await db
+      .from("scans")
+      .update({ status: finalStatus })
+      .eq("id", scan.id)
+      .select()
+      .single();
+    console.log(`[Scan] Status update result:`, JSON.stringify({ data: updateResult, error: statusError }));
+    if (statusError) {
+      console.error(`[Scan] Status update error:`, statusError.message);
+    } else {
+      console.log(`[Scan] Scan ${scan.id} updated to ${finalStatus} (${totalFindings} findings)`);
     }
-
-    return NextResponse.json({
-      message: totalFindings > 0
-        ? `${totalFindings} vulnerability(ies) found`
-        : "Code is clean",
-      scanId: scan.id,
-      filesScanned: files.length,
-      vulnerabilities: totalFindings,
-    });
-  } catch (error) {
-    console.error("[Scan] Error at step:", error);
-    console.error("[Scan] Stack:", (error as Error).stack);
-    return NextResponse.json(
-      { error: "Internal server error", details: (error as Error).message },
-      { status: 500 }
-    );
+  } catch (statusError: any) {
+    console.error(`[Scan] Error updating scan status:`, statusError.message);
+    console.error(`[Scan] Error details:`, JSON.stringify(statusError, null, 2));
   }
+
+  return NextResponse.json({
+    message: totalFindings > 0
+      ? `${totalFindings} vulnerability(ies) found`
+      : "Code is clean",
+    scanId: scan.id,
+    filesScanned: files.length,
+    vulnerabilities: totalFindings,
+  });
+} catch (error) {
+  console.error("[Scan] Error at step:", error);
+  console.error("[Scan] Stack:", (error as Error).stack);
+  return NextResponse.json(
+    { error: "Internal server error", details: (error as Error).message },
+    { status: 500 }
+  );
+}
+}
+
+/**
+ * AI Fix Generation Schema — used to generate fixed_code for pattern-based findings
+ */
+const FixGenerationSchema = z.object({
+  fixedCode: z.string().describe("The exact replacement code snippet that patches the vulnerability. Must be complete, valid code."),
+  confidence: z.number().min(0).max(1).describe("Your confidence in this fix (0-1). >= 0.7 means the fix is reliable."),
+});
+
+/**
+ * Generate AI fix for a single vulnerability finding
+ */
+async function generateFixForVulnerability(
+  vulnerabilityType: string,
+  vulnerableCode: string,
+  description: string,
+  filePath: string,
+): Promise<{ fixedCode: string | null; confidence: number }> {
+  try {
+    const { object } = await generateObjectWithFallback({
+      schema: FixGenerationSchema,
+      system: `You are Krypta, an expert AI security researcher generating code fixes for vulnerabilities.
+
+RULES:
+1. ALWAYS generate a fix — even if uncertain, provide your best attempt
+2. The fix must be COMPLETE, VALID code that can replace the vulnerable code
+3. Keep the fix minimal — only change what's necessary to fix the vulnerability
+4. Do NOT remove functionality, only fix the security issue
+5. If the vulnerable code is a single line, replace just that line
+6. If it involves imports or dependencies, include them
+
+Be practical. A good fix is better than no fix.`,
+      prompt: `Vulnerability Type: ${vulnerabilityType}
+File: ${filePath}
+Description: ${description}
+
+Vulnerable Code:
+\`\`\`
+${vulnerableCode}
+\`\`\`
+
+Generate a fix for this vulnerability.`,
+    });
+
+    return {
+      fixedCode: object.fixedCode || null,
+      confidence: object.confidence ?? 0,
+    };
+  } catch (err) {
+    console.error(`[AI Fix] Failed to generate fix:`, (err as Error).message);
+    return { fixedCode: null, confidence: 0 };
+  }
+}
+
+/**
+ * Batch-generate AI fixes for vulnerabilities that lack fixed_code
+ */
+async function generateFixesForVulnerabilities(
+  db: ReturnType<typeof createServiceRoleClient>,
+  vulnerabilities: any[],
+): Promise<void> {
+  const toFix = vulnerabilities.filter(
+    (v: any) => !v.fixed_code && v.vulnerable_code && v.vulnerability_type
+  );
+
+  if (toFix.length === 0) {
+    console.log(`[AI Fix] All vulnerabilities already have fixes`);
+    return;
+  }
+
+  console.log(`[AI Fix] Generating fixes for ${toFix.length} vulnerabilities...`);
+
+  for (const vuln of toFix) {
+    const fix = await generateFixForVulnerability(
+      vuln.vulnerability_type,
+      vuln.vulnerable_code,
+      vuln.plain_english_explanation || "",
+      vuln.file_path || "",
+    );
+
+    if (fix.fixedCode) {
+      try {
+        await db.from("vulnerabilities").update({
+          fixed_code: fix.fixedCode,
+          updated_at: new Date().toISOString(),
+        }).eq("id", vuln.id);
+        console.log(`[AI Fix] Generated fix for ${vuln.vulnerability_type} in ${vuln.file_path} (confidence: ${fix.confidence})`);
+      } catch (updateErr) {
+        console.error(`[AI Fix] Failed to update fix for ${vuln.id}:`, (updateErr as Error).message);
+      }
+    }
+  }
+
+  console.log(`[AI Fix] Fix generation complete`);
 }
