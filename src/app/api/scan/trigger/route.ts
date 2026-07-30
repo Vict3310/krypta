@@ -337,11 +337,12 @@ export async function POST(req: Request) {
     console.log(`[Scan] All files processed. Total findings: ${totalFindings}`);
 
     // Store vulnerabilities
+    let vulnResult: any[] = [];
     try {
       if (totalFindings > 0) {
         console.log(`[Scan] Storing ${Object.values(findingsPerFile).flat().length} vulnerabilities...`);
         const allFindings = Object.values(findingsPerFile).flat();
-        const { data: vulnResult, error: vulnError } = await db.from("vulnerabilities").insert(
+        const insertRes = await db.from("vulnerabilities").insert(
           allFindings.map((f: any) => ({
             scan_id: scan.id,
             file_path: f.filePath,
@@ -353,18 +354,59 @@ export async function POST(req: Request) {
             status: "open",
           }))
         ).select();
-        console.log(`[Scan] Vulnerability insert result:`, JSON.stringify({ count: vulnResult?.length, error: vulnError }));
-        if (vulnError) {
-          console.error(`[Scan] Vulnerability insert error:`, vulnError.message);
+        vulnResult = insertRes.data ?? [];
+        console.log(`[Scan] Vulnerability insert result:`, JSON.stringify({ count: vulnResult?.length, error: insertRes.error }));
+        if (insertRes.error) {
+          console.error(`[Scan] Vulnerability insert error:`, insertRes.error.message);
         } else {
-          console.log(`[Scan] ${vulnResult?.length} vulnerabilities stored`);
+          console.log(`[Scan] ${vulnResult.length} vulnerabilities stored`);
         }
       } else {
         console.log(`[Scan] No vulnerabilities to store`);
       }
-    } catch (vulnError: any) {
-      console.error(`[Scan] Error storing vulnerabilities:`, vulnError.message);
+    } catch (err: any) {
+      console.error(`[Scan] Error storing vulnerabilities:`, err.message);
       // Continue anyway — we'll update status below
+    }
+
+    // Auto-create exploit scan job for new vulnerabilities (Phase 2: exploit engine wiring)
+    if (vulnResult && vulnResult.length > 0) {
+      try {
+        console.log(`[Scan] Creating exploit scan job for ${vulnResult.length} vulnerabilities...`);
+        const repoUrl = `https://github.com/${repo.full_name}`;
+
+        // Clean up duplicate vulnerabilities (pattern matching may find the same issue multiple times)
+        const seen = new Set<string>();
+        const uniqueVulns = vulnResult.filter((v: any) => {
+          const key = `${v.file_path}:${v.vulnerability_type}:${v.line || 0}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+
+        if (uniqueVulns.length > 0) {
+          const { data: exploitJob, error: exploitError } = await db
+            .from("exploit_scan_jobs")
+            .insert({
+              user_id: session.user.id,
+              target_url: repoUrl,
+              vulnerability_ids: uniqueVulns.map((v: any) => v.id),
+              total_exploits: uniqueVulns.length,
+              status: "pending",
+            })
+            .select()
+            .single();
+
+          if (exploitError) {
+            console.error(`[Scan] Failed to create exploit scan job:`, exploitError.message);
+          } else {
+            console.log(`[Scan] Exploit scan job created: ${exploitJob.id}`);
+          }
+        }
+      } catch (exploitErr: any) {
+        console.error(`[Scan] Error creating exploit scan job:`, exploitErr.message);
+        // Non-critical — don't fail the scan
+      }
     }
 
     // Update scan status

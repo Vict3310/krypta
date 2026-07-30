@@ -1,3 +1,4 @@
+import { generateObjectWithFallback } from "./ai-provider";
 import { generateObject } from "ai";
 import { zgModel } from "./ai-0g";
 import { z } from "zod";
@@ -64,8 +65,7 @@ export async function scanCodeSnippet(code: string, filename: string, rules?: Sc
       }
     }
 
-    const { object } = await generateObject({
-      model: zgModel(),
+    const { object } = await generateObjectWithFallback({
       schema: VulnerabilitySchema,
       system: `You are Krypta, an expert AI security researcher performing CODE ANALYSIS for vulnerability detection.
 

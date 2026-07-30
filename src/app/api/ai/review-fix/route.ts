@@ -5,11 +5,10 @@
  * Checks for: correctness, security, completeness, and best practices.
  */
 import { NextResponse } from "next/server";
-import { generateObject } from "ai";
 import { z } from "zod";
 import { createServiceRoleClient } from "@/utils/supabase/service";
 import { createClient } from "@/utils/supabase/server";
-import { zgModel } from "@/lib/ai-0g";
+import { generateObjectWithFallback } from "@/lib/ai-provider";
 
 const FixReviewSchema = z.object({
   pass: z.boolean().describe("Whether the fix looks correct and secure"),
@@ -68,9 +67,8 @@ export async function POST(req: Request) {
       );
     }
 
-    // Call 0G AI to review the fix
-    const { object } = await generateObject({
-      model: zgModel(),
+    // Call 0G AI (with OpenAI fallback) to review the fix
+    const { object } = await generateObjectWithFallback({
       schema: FixReviewSchema,
       system: `You are Krypta, an expert AI security researcher reviewing auto-generated code fixes.
       Critically analyze the fix for:
@@ -78,24 +76,24 @@ export async function POST(req: Request) {
       2. **Security**: Does it introduce new vulnerabilities?
       3. **Completeness**: Is the fix thorough or does it miss edge cases?
       4. **Best Practices**: Does it follow security and coding best practices?
-      
+
       Be strict and thorough. False fixes are worse than no fixes.`,
       prompt: `Vulnerability: ${vulnerability.vulnerability_type || "Unknown"}
-Severity: ${vulnerability.severity}
-File: ${vulnerability.file_path || "N/A"}
-Line: ${vulnerability.line || "N/A"}
+      Severity: ${vulnerability.severity}
+      File: ${vulnerability.file_path || "N/A"}
+      Line: ${vulnerability.line || "N/A"}
 
-Vulnerable Code:
-\`\`\`
-${vulnerability.vulnerable_code || "N/A"}
-\`\`\`
+      Vulnerable Code:
+      \`\`\`
+      ${vulnerability.vulnerable_code || "N/A"}
+      \`\`\`
 
-Proposed Fix:
-\`\`\`
-${vulnerability.fixed_code || "No fix generated yet"}
-\`\`\`
+      Proposed Fix:
+      \`\`\`
+      ${vulnerability.fixed_code || "No fix generated yet"}
+      \`\`\`
 
-${vulnerability.plain_english_explanation ? `Explanation: ${vulnerability.plain_english_explanation}` : ""}`,
+      ${vulnerability.plain_english_explanation ? `Explanation: ${vulnerability.plain_english_explanation}` : ""}`,
     });
 
     // Store review result

@@ -5,19 +5,18 @@
  * not just severity score. Returns a priority score and recommended remediation order.
  */
 import { NextResponse } from "next/server";
-import { generateObject } from "ai";
 import { z } from "zod";
 import { createServiceRoleClient } from "@/utils/supabase/service";
 import { createClient } from "@/utils/supabase/server";
-import { zgModel } from "@/lib/ai-0g";
+import { generateObjectWithFallback } from "@/lib/ai-provider";
 
 const VulnerabilityTriageSchema = z.object({
   vulnerabilities: z.array(z.object({
     vulnerabilityId: z.string(),
-    priorityScore: z.number().min(0).max(100).describe("Priority score (0-100), higher = more urgent"),
-    reasoning: z.string().describe("Why this priority score was assigned"),
-    exploitChain: z.string().optional().describe("How this could be chained with other vulns"),
-    remediationOrder: z.number().min(1).describe("Where this should be in the remediation queue"),
+    priorityScore: z.number().min(0).max(100).describe("Priority score (0-100), higher = more urgent to fix"),
+    reasoning: z.string().describe("Why this priority score was assigned — be specific about risk factors"),
+    exploitChain: z.string().optional().describe("How this could be chained with other vulns to achieve a larger attack"),
+    remediationOrder: z.number().min(1).describe("Where this should be in the remediation queue (1 = first)"),
   })),
 });
 
@@ -70,31 +69,35 @@ export async function POST(req: Request) {
       );
     }
 
-    // Call 0G AI to triage
+    // Call 0G AI to triage (with OpenAI fallback)
     const vulnContext = vulnerabilities.map((v: any, i: number) => `
-${i + 1}. **${v.vulnerability_type || "Unknown"}** (${v.severity})
+${i + 1}. **${v.vulnerability_type || "Unknown"}** — Severity: ${v.severity}
    File: ${v.file_path || "N/A"}
    Explanation: ${v.plain_english_explanation || "N/A"}
-   Vulnerable Code: ${v.vulnerable_code ? `\`\`\`\n${v.vulnerable_code}\n\`\`\`` : "N/A"}`
+   Vulnerable Code: ${v.vulnerable_code ? `\`\`\`\n${v.vulnerable_code}\n\`\`\`` : "N/A"}
+   Fixed Code: ${v.fixed_code ? `\`\`\`\n${v.fixed_code}\n\`\`\`` : "N/A"}`
     ).join("\n");
 
-    const { object } = await generateObject({
-      model: zgModel(),
+    const { object } = await generateObjectWithFallback({
       schema: VulnerabilityTriageSchema,
-      system: `You are Krypta, an expert AI security researcher prioritizing vulnerabilities.
-      Rank each vulnerability by REAL-WORLD EXPLOIT LIKELIHOOD, not just severity:
-      
-      Consider:
-      - Is this in a user-facing endpoint? (higher priority)
-      - Can it be exploited remotely? (higher priority)
-      - Is the exploit chain short? (higher priority)
-      - Are there common automated tools for this attack? (higher priority)
-      - Does the vulnerable code handle user input? (higher priority)
-      - Is this a well-known vulnerability class with existing PoCs? (higher priority)
-      
-      Assign priority scores (0-100) and remediation order (1 = first to fix).
-      Be decisive — clear priorities are more useful than vague ones.`,
-      prompt: `Scan ID: ${scanId}\n${vulnContext}`,
+      system: `You are Krypta, an expert security researcher prioritizing vulnerabilities for remediation.
+
+SCORING GUIDELINES (0-100 priority score):
+- 90-100: Remote code execution, critical auth bypass, easily exploitable SQLi — FIX IMMEDIATELY
+- 70-89: XSS in auth flows, CORS misconfigurations with credentials, SSRF to cloud metadata
+- 50-69: Stored XSS, broken access control, hardcoded secrets in production code
+- 30-49: Reflected XSS, console debug leaks, minor info disclosure
+- 10-29: Low-risk patterns, theoretical issues, easily mitigated
+- 0-9: Likely false positives, defensive code, test files
+
+IMPORTANT RULES:
+1. Consider ATTACK COMPLEXITY: Can a non-expert exploit this?
+2. Consider IMPACT: What can an attacker achieve?
+3. Consider EXPLOIT CHAIN: Does this enable other attacks?
+4. HIGH confidence = high priority even if severity says "Medium"
+5. LOW confidence or test files = low priority
+6. Be DECISIVE — clear priorities help developers fix the right things first.`,
+      prompt: `Scan ID: ${scanId}\n${vulnContext}\n\nTriage these ${vulnerabilities.length} vulnerabilities by real-world risk.`,
     });
 
     // Store triage results
