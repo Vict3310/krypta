@@ -1,28 +1,50 @@
 import { Octokit } from "octokit";
 import { createSign } from "node:crypto";
 
-const getGitHubAppToken = async (): Promise<string> => {
+type InstallationAccount = {
+  login?: string;
+};
+
+type Installation = {
+  id: number;
+  account?: InstallationAccount | null;
+};
+
+function buildGitHubAppJwt(): string {
   let privateKey = process.env.GITHUB_APP_PRIVATE_KEY?.replace(/\\n/g, "\n") || "";
   if (!privateKey) throw new Error("GITHUB_APP_PRIVATE_KEY not configured");
-  // Also handle Windows-style newlines
   privateKey = privateKey.replace(/\r\n/g, "\n");
+
+  if (
+    privateKey.startsWith("SHA256:") ||
+    privateKey.startsWith("fingerprint") ||
+    privateKey === "PLACEHOLDER" ||
+    privateKey.length < 100
+  ) {
+    throw new Error(
+      "Invalid GITHUB_APP_PRIVATE_KEY format. Use the full RSA PEM private key from GitHub App settings."
+    );
+  }
 
   const appId = process.env.GITHUB_APP_ID;
   if (!appId) throw new Error("GITHUB_APP_ID not configured");
 
-  const iat = Math.floor(Date.now() / 1000);
-  const exp = iat + 600; // 10 minutes
+  const iat = Math.floor(Date.now() / 1000) - 60;
+  const exp = iat + 600;
 
-  const header = Buffer.from(JSON.stringify({ alg: "ES256", typ: "JWT" })).toString("base64url");
+  // GitHub Apps require RS256 (RSA) JWTs
+  const header = Buffer.from(JSON.stringify({ alg: "RS256", typ: "JWT" })).toString("base64url");
   const payload = Buffer.from(JSON.stringify({ iat, exp, iss: appId })).toString("base64url");
-  const sign = createSign("SHA256");
+  const sign = createSign("RSA-SHA256");
   sign.update(`${header}.${payload}`);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const signature = sign.sign({ key: privateKey, padding: 1, dsa: "ecdsa", namedCurve: "prime256v1" } as any).toString("base64url");
+  sign.end();
+  const signature = sign.sign(privateKey, "base64url");
 
-  const jwt = `${header}.${payload}.${signature}`;
+  return `${header}.${payload}.${signature}`;
+}
 
-  const installationsRes = await fetch(`https://api.github.com/app/installations`, {
+async function listInstallations(jwt: string): Promise<Installation[]> {
+  const installationsRes = await fetch("https://api.github.com/app/installations", {
     headers: {
       Authorization: `Bearer ${jwt}`,
       "X-GitHub-Api-Version": "2022-11-28",
@@ -35,42 +57,79 @@ const getGitHubAppToken = async (): Promise<string> => {
     throw new Error(`Failed to list GitHub App installations: ${installationsRes.status} ${body}`);
   }
 
-  const { data: installations } = await installationsRes.json();
-
-  if (!installations || installations.length === 0) {
+  const installations = (await installationsRes.json()) as Installation[];
+  if (!Array.isArray(installations) || installations.length === 0) {
     throw new Error("No GitHub App installations found. Install the Krypta GitHub App on your account.");
   }
+  return installations;
+}
 
-  // Use the first installation (in production, match by user/org)
-  const installationId = installations[0].id;
-
-  const accessTokenRes = await fetch(`https://api.github.com/app/installations/${installationId}/access_tokens`, {
-    headers: {
-      Authorization: `Bearer ${jwt}`,
-      "X-GitHub-Api-Version": "2022-11-28",
-      Accept: "application/vnd.github+json",
-    },
-    method: "POST",
-  });
+async function createInstallationToken(jwt: string, installationId: number): Promise<string> {
+  const accessTokenRes = await fetch(
+    `https://api.github.com/app/installations/${installationId}/access_tokens`,
+    {
+      headers: {
+        Authorization: `Bearer ${jwt}`,
+        "X-GitHub-Api-Version": "2022-11-28",
+        Accept: "application/vnd.github+json",
+      },
+      method: "POST",
+    }
+  );
 
   if (!accessTokenRes.ok) {
     const body = await accessTokenRes.text();
     throw new Error(`Failed to get access token: ${accessTokenRes.status} ${body}`);
   }
 
-  const { data } = await accessTokenRes.json();
+  const data = (await accessTokenRes.json()) as { token?: string };
+  if (!data.token) throw new Error("GitHub installation token missing from response");
   return data.token;
+}
+
+/**
+ * Get an installation access token.
+ * Prefer matching by owner login (org/user) when provided.
+ */
+const getGitHubAppToken = async (options?: {
+  owner?: string;
+  installationId?: number;
+}): Promise<string> => {
+  const jwt = buildGitHubAppJwt();
+  const installations = await listInstallations(jwt);
+
+  let installation: Installation | undefined;
+
+  if (options?.installationId) {
+    installation = installations.find((i) => i.id === options.installationId);
+  }
+
+  if (!installation && options?.owner) {
+    const owner = options.owner.toLowerCase();
+    installation = installations.find(
+      (i) => i.account?.login?.toLowerCase() === owner
+    );
+  }
+
+  if (!installation) {
+    if (options?.owner || options?.installationId) {
+      throw new Error(
+        `No GitHub App installation found for ${options.owner ?? `id ${options.installationId}`}`
+      );
+    }
+    installation = installations[0];
+  }
+
+  return createInstallationToken(jwt, installation.id);
 };
 
 export { getGitHubAppToken };
 
 export async function getGitHubUserRepositories(username: string): Promise<any[]> {
-  // Strategy 1: Try GitHub App installation token to get repos the app has access to
   try {
-    const token = await getGitHubAppToken();
+    const token = await getGitHubAppToken({ owner: username });
     const octokit = new Octokit({ auth: token });
 
-    // listForAuthenticatedUser works with installation tokens — lists repos the app is installed on
     const { data } = await octokit.rest.repos.listForAuthenticatedUser({
       type: "owner",
       per_page: 100,
@@ -81,17 +140,19 @@ export async function getGitHubUserRepositories(username: string): Promise<any[]
     const msg = (e as Error).message;
     if (msg.includes("GITHUB_APP_PRIVATE_KEY") || msg.includes("GITHUB_APP_ID")) {
       console.warn("[GitHub] GitHub App not configured — skipping app token fetch");
-    } else if (msg.includes("No GitHub App installations")) {
+    } else if (msg.includes("No GitHub App installations") || msg.includes("No GitHub App installation found")) {
       console.warn("[GitHub] No installation found for the app — falling back to public repos");
     } else {
       console.warn("[GitHub] App token fetch failed, falling back to public repos:", msg);
     }
   }
 
-  // Strategy 2: Unauthenticated fetch for public repos by username
-  const res = await fetch(`https://api.github.com/users/${username}/repos?type=owner&per_page=100&sort=updated`, {
-    headers: { Accept: "application/vnd.github+json" },
-  });
+  const res = await fetch(
+    `https://api.github.com/users/${encodeURIComponent(username)}/repos?type=owner&per_page=100&sort=updated`,
+    {
+      headers: { Accept: "application/vnd.github+json" },
+    }
+  );
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
@@ -105,7 +166,6 @@ export async function getGitHubUserRepositories(username: string): Promise<any[]
   return data as any[];
 }
 
-// Legacy function — kept for backward compatibility if OAuth provider_token is ever restored
 export async function getGitHubUserRepositoriesWithToken(providerToken: string): Promise<any[]> {
   const octokit = new Octokit({ auth: providerToken });
   const { data } = await octokit.rest.repos.listForAuthenticatedUser({
@@ -123,21 +183,18 @@ export async function createFixPullRequest(
   vulnerabilityType: string,
   baseBranch: string = "main"
 ) {
-  // Get a fresh installation token for PR creation
-  const token = await getGitHubAppToken();
+  const token = await getGitHubAppToken({ owner });
   const octokit = new Octokit({ auth: token });
 
   const branchName = `krypta-fix-${vulnerabilityType.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-$/, "")}-${Date.now()}`;
 
   try {
-    // 1. Get source branch reference (the scanned commit's branch)
     const { data: sourceRef } = await octokit.rest.git.getRef({
       owner,
       repo,
       ref: `heads/${baseBranch}`,
     });
 
-    // 2. Create new fix branch from the scanned branch
     await octokit.rest.git.createRef({
       owner,
       repo,
@@ -145,7 +202,6 @@ export async function createFixPullRequest(
       sha: sourceRef.object.sha,
     });
 
-    // 3. Get the file's current SHA
     const { data: fileData } = await octokit.rest.repos.getContent({
       owner,
       repo,
@@ -153,7 +209,6 @@ export async function createFixPullRequest(
       ref: branchName,
     });
 
-    // 4. Update the file
     if (!Array.isArray(fileData) && fileData.type === "file") {
       await octokit.rest.repos.createOrUpdateFileContents({
         owner,
@@ -166,7 +221,6 @@ export async function createFixPullRequest(
       });
     }
 
-    // 5. Open Pull Request against the scanned branch
     const { data: prData } = await octokit.rest.pulls.create({
       owner,
       repo,

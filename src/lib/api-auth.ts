@@ -1,49 +1,53 @@
 /**
- * REST API Authentication Middleware
- * Validates API keys and authenticates requests
+ * REST API Authentication
+ * Validates API keys (SHA-256 hashed) and returns the owning user id.
  */
+import { createHash } from "node:crypto";
 import { createServiceRoleClient } from "@/utils/supabase/service";
 import * as Sentry from "@sentry/nextjs";
+import type { User } from "@supabase/supabase-js";
 
-export async function validateApiKey(request: Request) {
-  const supabase = createServiceRoleClient();
+export function hashApiKey(key: string): string {
+  return createHash("sha256").update(key).digest("hex");
+}
+
+export async function validateApiKey(request: Request): Promise<
+  | { user: Pick<User, "id">; apiKey: { user_id: string; name: string; created_at: string }; error?: never }
+  | { error: string; status: number; user?: never; apiKey?: never }
+> {
   const authHeader = request.headers.get("authorization");
 
-  if (!authHeader) {
-    return { error: "Missing authorization header", status: 401 };
+  if (!authHeader?.startsWith("Bearer ")) {
+    return { error: "Missing or invalid authorization header", status: 401 };
   }
 
-  // Support Bearer token format
-  const token = authHeader.replace("Bearer ", "");
-
+  const token = authHeader.slice(7).trim();
   if (!token) {
     return { error: "Invalid authorization format", status: 401 };
   }
 
-  // Validate API key
+  const supabase = createServiceRoleClient();
+  const keyHash = hashApiKey(token);
+
   const { data: apiKey, error: apiKeyError } = await supabase
     .from("api_keys")
     .select("user_id, name, created_at")
-    .eq("key_hash", createHash(token))
+    .eq("key_hash", keyHash)
     .single();
 
   if (apiKeyError || !apiKey) {
-    Sentry.captureException(apiKeyError);
+    if (apiKeyError) Sentry.captureException(apiKeyError);
     return { error: "Invalid API key", status: 401 };
   }
 
-  // Get session for the user
-  const { data: { session } } = await supabase.auth.getSession();
+  // Touch last_used_at (best-effort)
+  void supabase
+    .from("api_keys")
+    .update({ last_used_at: new Date().toISOString() })
+    .eq("key_hash", keyHash);
 
-  if (!session) {
-    return { error: "User session not found", status: 401 };
-  }
-
-  return { user: session.user, apiKey };
-}
-
-// Simple hash function for API key comparison
-function createHash(key: string): string {
-  // In production, use proper hashing (SHA-256)
-  return btoa(key);
+  return {
+    user: { id: apiKey.user_id },
+    apiKey,
+  };
 }

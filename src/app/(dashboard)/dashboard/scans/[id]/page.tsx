@@ -432,14 +432,52 @@ export default function ScanDetailPage({ params }: { params: Promise<{ id: strin
                   </p>
                 )}
 
-                {/* AI Fix Review */}
+                {selected.vulnerable_code && (
+                  <div className="rounded-[28px] border border-black/5 bg-[#171719] overflow-hidden shadow-[0_1px_0_rgba(255,255,255,0.08)_inset,0_20px_40px_-20px_rgba(23,23,25,0.8)]">
+                    <div className="flex items-center justify-between border-b border-white/5 px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
+                          <div className="h-2.5 w-2.5 rounded-full bg-red-500" />
+                          <div className="h-2.5 w-2.5 rounded-full bg-amber-500" />
+                          <div className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                        </div>
+                        <span className="text-xs text-white/40 font-mono">
+                          {selected.file_path}
+                          {selected.line ? `:${selected.line}` : ""}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="text-red-400">Vulnerable</span>
+                        {selected.fixed_code && <span className="text-white/20">→</span>}
+                        {selected.fixed_code && <span className="text-emerald-400">Fixed</span>}
+                      </div>
+                    </div>
+
+                    {/* Vulnerable code */}
+                    <div className="p-4 overflow-x-auto">
+                      <pre className="bg-red-500/10 border-l-4 border-red-500 -mx-4 px-4 py-2 text-red-300 whitespace-pre-wrap font-mono text-sm">
+                        {selected.vulnerable_code}
+                      </pre>
+                    </div>
+
+                    {/* Fixed code */}
+                    {selected.fixed_code && (
+                      <div className="border-t border-white/5 p-4 overflow-x-auto">
+                        <pre className="bg-emerald-500/10 border-l-4 border-emerald-500 -mx-4 px-4 py-2 text-emerald-300 whitespace-pre-wrap font-mono text-sm">
+                          {selected.fixed_code}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {selected.fixed_code && (
-                  <div className="mt-4 rounded-xl border border-black/5 bg-white p-3 sm:p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="text-xs sm:text-sm font-semibold text-sf-text-primary flex items-center gap-1.5">
+                  <div className="rounded-[28px] border border-black/5 bg-white p-4 sm:p-6 shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_14px_30px_-18px_rgba(35,36,39,0.25)]">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-sm font-semibold text-sf-text-primary flex items-center gap-2">
                         <Sparkles className="h-3.5 w-3.5 text-sf-accent" />
                         AI Fix Review
-                      </h4>
+                      </h3>
                       <button
                         onClick={() => handleAiReviewFix(selected)}
                         disabled={fixReviewLoading[selected.id]}
@@ -467,7 +505,7 @@ export default function ScanDetailPage({ params }: { params: Promise<{ id: strin
                     {getFixReview(selected.id) ? (() => {
                       const review = getFixReview(selected.id)!;
                       return (
-                        <div className="space-y-2">
+                        <div className="space-y-3">
                           <div className="flex items-center gap-2">
                             {review.pass ? (
                               <CheckCircle2 className="h-4 w-4 text-emerald-500" />
@@ -508,58 +546,15 @@ export default function ScanDetailPage({ params }: { params: Promise<{ id: strin
                           )}
                         </div>
                       );
-                    })() : null}
+                    })() : (
+                      <p className="text-xs text-sf-text-tertiary text-center py-4">Click "Review Fix" to validate the AI-generated fix</p>
+                    )}
                   </div>
                 )}
               </div>
-
-              {/* Vulnerability Timeline */}
-              <div className="rounded-[28px] border border-black/5 bg-white p-4 sm:p-6 shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_14px_30px_-18px_rgba(35,36,39,0.25)]">
-                <h3 className="text-sm font-semibold text-sf-text-primary mb-3 sm:mb-4 flex items-center gap-2">
-                  <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-sf-accent" />
-                  Vulnerability Timeline
-                </h3>
-                <div className="relative pl-4 space-y-3 sm:space-y-4 before:absolute before:left-[15px] before:top-2 before:bottom-2 before:w-0.5 before:bg-gray-200">
-                  {buildTimeline(selected).map((event, idx) => {
-                    const Icon = event.icon;
-                    return (
-                      <div key={idx} className="relative flex items-start gap-3">
-                        <div className="absolute -left-4 top-1 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-white border-2 border-gray-200 flex items-center justify-center z-10">
-                          <Icon className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-gray-500" />
-                        </div>
-                        <div className="ml-4">
-                          <p className="text-sm text-sf-text-primary">{event.label}</p>
-                          <p className="text-[11px] sm:text-xs text-sf-text-tertiary">
-                            {new Date(event.timestamp).toLocaleString()}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {selected.vulnerable_code && (
-                <div className="rounded-[28px] border border-black/5 bg-[#171719] overflow-hidden shadow-[0_1px_0_rgba(255,255,255,0.08)_inset,0_20px_40px_-20px_rgba(23,23,25,0.8)]">
-                  <div className="flex items-center gap-2 border-b border-white/5 px-4 py-3">
-                    <div className="h-2.5 w-2.5 rounded-full bg-red-500" />
-                    <div className="h-2.5 w-2.5 rounded-full bg-amber-500" />
-                    <div className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
-                    <span className="text-xs text-white/40 ml-3 font-mono">
-                      {selected.file_path}
-                    </span>
-                  </div>
-                  <div className="p-4 overflow-x-auto text-sm text-white/75 font-mono space-y-2">
-                    <pre className="bg-red-500/10 border-l-4 border-red-500 -mx-4 px-4 py-2 text-red-300 whitespace-pre-wrap">
-                      {selected.vulnerable_code}
-                    </pre>
-                  </div>
-                </div>
-              )}
+          )}
             </div>
           )}
-        </div>
-      )}
-    </main>
-  );
+        </main>
+      );
 }
