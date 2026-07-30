@@ -1,0 +1,9 @@
+// This file configures Sentry for edge runtime
+import * as Sentry from "@sentry/nextjs";
+
+Sentry.init({
+  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+  tracesSampleRate: 1.0,
+  profilerSampleRate: 1.0,
+  debug: false,
+});

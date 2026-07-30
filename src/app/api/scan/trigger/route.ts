@@ -371,6 +371,47 @@ export async function POST(req: Request) {
       // Continue anyway — we'll update status below
     }
 
+    // Phase 3.1: Send email alerts for Critical/High severity vulnerabilities
+    if (vulnResult && vulnResult.length > 0) {
+      const criticalOrHigh = vulnResult.filter(
+        (v: any) => v.severity === "Critical" || v.severity === "High"
+      );
+      if (criticalOrHigh.length > 0) {
+        console.log(
+          `[Scan] Found ${criticalOrHigh.length} Critical/High vulns, sending email alerts...`
+        );
+        try {
+          const { data: profile } = await db
+            .from("profiles")
+            .select("email, full_name")
+            .eq("id", session.user.id)
+            .single();
+
+          const email = profile?.email;
+          if (email && process.env.RESEND_API_KEY) {
+            const dashboardUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://pxxl.vercel.app"}/dashboard/scans`;
+            await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/email/alert`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                severity: "Critical",
+                vulnType: `${criticalOrHigh.length} vulnerabilities detected`,
+                repoName: repo.full_name,
+                filePath: criticalOrHigh[0].file_path,
+                description: `Your scan detected ${criticalOrHigh.length} security vulnerabilities (${criticalOrHigh.filter((v: any) => v.severity === "Critical").length} critical, ${criticalOrHigh.filter((v: any) => v.severity === "High").length} high). Review them in your dashboard.`,
+                scanDate: scan.triggered_at,
+                to: email,
+                dashboardUrl,
+              }),
+            });
+            console.log("[Scan] Email alert sent");
+          }
+        } catch (emailErr: any) {
+          console.error("[Scan] Failed to send email alert:", emailErr.message);
+        }
+      }
+    }
+
     // Auto-create exploit scan job for new vulnerabilities (Phase 2: exploit engine wiring)
     if (vulnResult && vulnResult.length > 0) {
       try {

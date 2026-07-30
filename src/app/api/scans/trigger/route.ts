@@ -1,16 +1,21 @@
+import { createServiceRoleClient } from "@/utils/supabase/service";
+import { scanCodeSnippet } from "@/lib/ai";
+import { rateLimit } from "@/lib/rate-limit";
+
 /**
- * CI/CD Scan Trigger API
- * Called by GitHub Actions or other CI systems to trigger a scan
+ * CI/CD Scan Trigger API (AI-based)
+ * Called by GitHub Actions or other CI systems to trigger an AI-powered scan.
+ * Uses scanCodeSnippet from ai.ts which generates fixed_code.
  */
 import { NextResponse } from "next/server";
-import * as Sentry from "@sentry/nextjs";
-import { scanCodeSnippet } from "@/lib/ai";
 import { createFixPullRequest, getGitHubAppToken } from "@/lib/github";
-import { createServiceRoleClient } from "@/utils/supabase/service";
 import { Octokit } from "octokit";
 
 // Rate limiting for CI/CD triggers
 const triggerCooldowns = new Map<string, number>();
+
+// File size limit (50KB)
+const MAX_FILE_SIZE = 50 * 1024;
 
 export async function POST(req: Request) {
   try {
@@ -23,8 +28,6 @@ export async function POST(req: Request) {
       );
     }
 
-    const supabase = createServiceRoleClient();
-
     // Rate limit: 1 trigger per repo per 60 seconds
     const now = Date.now();
     const lastTrigger = triggerCooldowns.get(repositoryId) ?? 0;
@@ -36,10 +39,12 @@ export async function POST(req: Request) {
     }
     triggerCooldowns.set(repositoryId, now);
 
+    const supabase = createServiceRoleClient();
+
     // Fetch repository
     const { data: repo, error: repoError } = await supabase
       .from("repositories")
-      .select("*, repositories(full_name, github_repo_id), profiles(id, full_name)")
+      .select("*")
       .eq("id", repositoryId)
       .single();
 
@@ -53,14 +58,16 @@ export async function POST(req: Request) {
     // Get GitHub App Installation Access Token
     const githubToken = await getGitHubAppToken();
     const octokit = new Octokit({ auth: githubToken });
+
     try {
+      // Get latest commit SHA
       const { data: refData } = await octokit.rest.git.getRef({
         owner,
         repo: repoName,
         ref: `heads/${branch}`,
       });
 
-      const commitSha = (refData.object as any).sha;
+      const commitSha = (refData.object as any)?.sha;
 
       // Create scan record
       const { data: scan } = await supabase
@@ -76,7 +83,7 @@ export async function POST(req: Request) {
 
       if (!scan) throw new Error("Failed to create scan record");
 
-      // Fetch and scan files from the latest commit
+      // Fetch and scan files using AI
       const { data: commitData } = await octokit.rest.repos.getCommit({
         owner,
         repo: repoName,
@@ -109,8 +116,13 @@ export async function POST(req: Request) {
 
         const content = Buffer.from((fileData as any)?.content, "base64").toString("utf-8");
 
+        // Skip large files
+        if (content.length > MAX_FILE_SIZE) continue;
+
         try {
-          const scanResult = await scanCodeSnippet(content, filePath);
+          const scanResult = await scanCodeSnippet(content, filePath, {
+            minConfidence: 0.75,
+          });
           filesScanned++;
 
           if (scanResult.hasVulnerability && scanResult.fixedCode) {
@@ -124,28 +136,28 @@ export async function POST(req: Request) {
             });
           }
         } catch (scanError) {
-          Sentry.captureException(scanError, {
-            tags: { filePath, commitSha },
-          });
+          console.error(`[AI Scan] Error scanning ${filePath}:`, scanError);
+          // Continue with other files
         }
       }
 
       if (vulnerabilitiesFound.length > 0) {
-        const highestSeverity = vulnerabilitiesFound[0].severity;
-
         for (const finding of vulnerabilitiesFound) {
           let prUrl: string | null = null;
           try {
-            prUrl = await createFixPullRequest(
-              owner,
-              repoName,
-              finding.filePath,
-              finding.fixedCode,
-              finding.vulnerabilityType,
-              branch
-            );
+            // Only create PRs for high-severity findings
+            if (finding.severity === "High" || finding.severity === "Critical") {
+              prUrl = await createFixPullRequest(
+                owner,
+                repoName,
+                finding.filePath,
+                finding.fixedCode,
+                finding.vulnerabilityType,
+                branch
+              );
+            }
           } catch (e) {
-            Sentry.captureException(e, { tags: { filePath: finding.filePath } });
+            console.error(`[AI Scan] Failed to create PR for ${finding.filePath}:`, e);
           }
 
           await supabase.from("vulnerabilities").insert({
@@ -184,12 +196,11 @@ export async function POST(req: Request) {
         filesScanned,
       });
     } catch (error) {
-      Sentry.captureException(error, { tags: { owner, repoName, branch } });
+      console.error("[CI/CD] GitHub API error:", error);
       return NextResponse.json({ error: "Failed to fetch or scan repository" }, { status: 500 });
     }
   } catch (error) {
-    Sentry.captureException(error);
-    console.error("CI/CD trigger error:", error);
+    console.error("[CI/CD] Error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

@@ -13,8 +13,12 @@ import {
   Play,
   Loader2,
   AlertCircle,
+  Star,
 } from "lucide-react";
 import type { Scan, Vulnerability } from "@/lib/types";
+
+// Plan type
+type PlanId = "free" | "pro";
 
 function SeverityBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
@@ -41,9 +45,9 @@ function ScanCard({ scan }: { scan: Scan & { repositories: { full_name: string }
     >
       <div className="flex items-center gap-3">
         <div className={`p-2 rounded-lg ${scan.status === "clean" ? "bg-emerald-50" :
-            scan.status === "vulnerable" ? "bg-red-50" :
-              scan.status === "failed" ? "bg-orange-50" :
-                "bg-amber-50"
+          scan.status === "vulnerable" ? "bg-red-50" :
+            scan.status === "failed" ? "bg-orange-50" :
+              "bg-amber-50"
           }`}>
           {scan.status === "clean" ? (
             <CheckCircle2 className="h-4 w-4 text-emerald-600" />
@@ -166,6 +170,7 @@ export default function DashboardPage() {
     fixedCount: 0,
     activeRepos: 0,
   });
+  const [currentPlan, setCurrentPlan] = useState<PlanId>("free");
   const [recentScans, setRecentScans] = useState<Array<Scan & { repositories: { full_name: string } }>>([]);
   const [connectedRepos, setConnectedRepos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -191,6 +196,15 @@ export default function DashboardPage() {
 
       const name = session.user.user_metadata?.full_name?.split(" ")[0] || session.user.email?.split("@")[0] || "there";
       setFirstName(name);
+
+      // Load current plan
+      try {
+        const res = await fetch("/api/billing/subscription");
+        const data = await res.json();
+        setCurrentPlan(data.plan || "free");
+      } catch (error) {
+        console.error("[Dashboard] Failed to load plan:", error);
+      }
 
       try {
         // Fetch connected repositories
@@ -267,6 +281,8 @@ export default function DashboardPage() {
     loadData();
   }, []);
 
+  const isPro = currentPlan === "pro";
+
   const metricCards = [
     {
       label: "Total Scans",
@@ -318,13 +334,24 @@ export default function DashboardPage() {
             Here&apos;s what&apos;s happening across your repositories.
           </p>
         </div>
-        <Link
-          href="/dashboard/repositories/new"
-          className="hidden sm:inline-flex items-center gap-2 rounded-full bg-[#171719] text-white px-4 py-2 sm:px-5 sm:py-2.5 text-xs sm:text-sm font-medium shadow-[0_1px_0_rgba(255,255,255,0.2)_inset,0_14px_28px_-12px_rgba(23,23,25,0.75)] transition-all hover:-translate-y-0.5"
-        >
-          <GitBranch className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-          Connect Repo
-        </Link>
+        <div className="flex items-center gap-3">
+          {!isPro && (
+            <Link
+              href="/pricing"
+              className="inline-flex items-center gap-2 rounded-full bg-sf-accent text-white px-4 py-2 sm:px-5 sm:py-2.5 text-xs sm:text-sm font-medium shadow-[0_1px_0_rgba(255,255,255,0.2)_inset,0_14px_28px_-12px_rgba(23,23,25,0.75)] transition-all hover:-translate-y-0.5"
+            >
+              <Star className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              Upgrade to Pro
+            </Link>
+          )}
+          <Link
+            href="/dashboard/repositories/new"
+            className="hidden sm:inline-flex items-center gap-2 rounded-full bg-[#171719] text-white px-4 py-2 sm:px-5 sm:py-2.5 text-xs sm:text-sm font-medium shadow-[0_1px_0_rgba(255,255,255,0.2)_inset,0_14px_28px_-12px_rgba(23,23,25,0.75)] transition-all hover:-translate-y-0.5"
+          >
+            <GitBranch className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            Connect Repo
+          </Link>
+        </div>
       </div>
 
       {/* Metric Cards */}
