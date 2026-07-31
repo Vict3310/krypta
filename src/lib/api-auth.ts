@@ -12,7 +12,7 @@ export function hashApiKey(key: string): string {
 }
 
 export async function validateApiKey(request: Request): Promise<
-  | { user: Pick<User, "id">; apiKey: { user_id: string; name: string; created_at: string }; error?: never }
+  | { user: Pick<User, "id">; apiKey: { user_id: string; name: string; created_at: string }; error?: never; status?: never }
   | { error: string; status: number; user?: never; apiKey?: never }
 > {
   const authHeader = request.headers.get("authorization");

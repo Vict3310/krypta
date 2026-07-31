@@ -23,6 +23,7 @@ interface OnboardingData {
   teamCreated: boolean;
   firstScanCompleted: boolean;
   profileComplete: boolean;
+  onboardingCompleted: boolean;
 }
 
 export default function OnboardingWizard({ userId }: OnboardingWizardProps) {
@@ -33,6 +34,7 @@ export default function OnboardingWizard({ userId }: OnboardingWizardProps) {
     teamCreated: false,
     firstScanCompleted: false,
     profileComplete: false,
+    onboardingCompleted: false,
   });
   const supabase = createClient();
 
@@ -44,14 +46,19 @@ export default function OnboardingWizard({ userId }: OnboardingWizardProps) {
     try {
       const { data: profile } = await supabase
         .from("profiles")
-        .select("full_name, avatar_url")
+        .select("full_name, avatar_url, onboarding_completed")
         .eq("id", userId)
         .single();
 
       setOnboardingData((prev) => ({
         ...prev,
         profileComplete: !!profile?.full_name,
+        onboardingCompleted: !!profile?.onboarding_completed,
       }));
+      
+      if (profile?.onboarding_completed) {
+        setCurrentStep("complete");
+      }
     } catch (error) {
       console.error("Error checking onboarding status:", error);
     }
@@ -205,7 +212,23 @@ export default function OnboardingWizard({ userId }: OnboardingWizardProps) {
           )}
           {currentStep === "customize" && (
             <CustomizeStep
-              onComplete={() => setCurrentStep("complete")}
+              loading={loading}
+              onComplete={async (settings) => {
+                setLoading(true);
+                try {
+                  await supabase.from("profiles").update({
+                    onboarding_completed: true,
+                    default_scan_settings: settings,
+                  }).eq("id", userId);
+                  
+                  setOnboardingData(prev => ({ ...prev, onboardingCompleted: true }));
+                  setCurrentStep("complete");
+                } catch (error) {
+                  console.error("Failed to save settings", error);
+                } finally {
+                  setLoading(false);
+                }
+              }}
             />
           )}
           {currentStep === "complete" && (
@@ -463,7 +486,7 @@ function TeamStep({
   );
 }
 
-function CustomizeStep({ onComplete }: { onComplete: () => void }) {
+function CustomizeStep({ onComplete, loading }: { onComplete: (settings: any) => void; loading?: boolean }) {
   const [minSeverity, setMinSeverity] = useState<"Low" | "Medium" | "High" | "Critical">(
     "Medium"
   );
@@ -541,11 +564,21 @@ function CustomizeStep({ onComplete }: { onComplete: () => void }) {
       </div>
 
       <button
-        onClick={onComplete}
-        className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-sf-accent to-[#F05A3C] text-white rounded-lg font-medium hover:opacity-90 transition-opacity"
+        onClick={() => onComplete({ minSeverity, enableAI, enableAutoPR })}
+        disabled={loading}
+        className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-sf-accent to-[#F05A3C] text-white rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
       >
-        Finish Setup
-        <CheckCircle2 className="h-4 w-4" />
+        {loading ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Saving...
+          </>
+        ) : (
+          <>
+            Finish Setup
+            <CheckCircle2 className="h-4 w-4" />
+          </>
+        )}
       </button>
     </div>
   );

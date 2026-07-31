@@ -18,6 +18,7 @@ import {
   AlertOctagon,
 } from "lucide-react";
 import type { Scan, Vulnerability } from "@/lib/types";
+import { useRouter } from "next/navigation";
 
 // Plan type
 type PlanId = "free" | "pro";
@@ -133,7 +134,7 @@ function ScanNowButton({ repositoryId, onScanComplete }: { repositoryId: string;
   return (
     <div className="space-y-2">
       <button
-        onClick={handleScan}
+        onClick={() => handleScan(0)}
         disabled={scanning}
         className="inline-flex items-center gap-2 rounded-full bg-[#171719] px-4 py-2 text-sm font-medium text-white shadow-[0_1px_0_rgba(255,255,255,0.2)_inset,0_8px_18px_-10px_rgba(23,23,25,0.5)] transition-all hover:-translate-y-0.5 disabled:opacity-50"
       >
@@ -177,6 +178,7 @@ export default function DashboardPage() {
   const [connectedRepos, setConnectedRepos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [firstName, setFirstName] = useState("there");
+  const router = useRouter();
 
   useEffect(() => {
     async function loadData() {
@@ -198,6 +200,21 @@ export default function DashboardPage() {
 
       const name = session.user.user_metadata?.full_name?.split(" ")[0] || session.user.email?.split("@")[0] || "there";
       setFirstName(name);
+
+      try {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("onboarding_completed")
+          .eq("id", session.user.id)
+          .single();
+          
+        if (profile && !profile.onboarding_completed) {
+          router.push("/onboarding");
+          return;
+        }
+      } catch (error) {
+        console.error("[Dashboard] Failed to check onboarding:", error);
+      }
 
       // Load current plan
       try {

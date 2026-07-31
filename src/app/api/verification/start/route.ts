@@ -35,7 +35,7 @@ export async function POST(request: Request) {
     }
 
     // Verify the repository belongs to the user
-    const db = supabase
+    const db = await supabase
       .from("repositories")
       .select("id, owner_id")
       .eq("id", repositoryId)

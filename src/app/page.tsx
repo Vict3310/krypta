@@ -629,16 +629,16 @@ function Footer() {
             <ul className="space-y-3 text-sm text-[#55575c]">
               <li><a href="#" className="hover:text-[#2E3034] transition-colors">About</a></li>
               <li><a href="mailto:hello@krypta.dev" className="hover:text-[#2E3034] transition-colors">Contact</a></li>
-              <li><a href="#" className="hover:text-[#2E3034] transition-colors">Privacy</a></li>
-              <li><a href="#" className="hover:text-[#2E3034] transition-colors">Terms</a></li>
+              <li><a href="/privacy" className="hover:text-[#2E3034] transition-colors">Privacy</a></li>
+              <li><a href="/terms" className="hover:text-[#2E3034] transition-colors">Terms</a></li>
             </ul>
           </div>
         </div>
         <div className="mt-12 pt-8 border-t border-black/5 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-sm text-[#8a8c91]">&copy; {new Date().getFullYear()} Krypta. All rights reserved.</p>
           <div className="flex items-center gap-6 text-sm text-[#8a8c91]">
-            <a href="#" className="hover:text-[#2E3034] transition-colors">Privacy</a>
-            <a href="#" className="hover:text-[#2E3034] transition-colors">Terms</a>
+            <Link href="/privacy" className="hover:text-[#2E3034] transition-colors">Privacy</Link>
+            <Link href="/terms" className="hover:text-[#2E3034] transition-colors">Terms</Link>
             <a href="#" className="hover:text-[#2E3034] transition-colors">Cookies</a>
           </div>
         </div>

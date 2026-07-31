@@ -40,7 +40,7 @@ export type Scan = {
   repository_id: string;
   commit_sha: string | null;
   branch: string | null;
-  status: "pending" | "scanning" | "clean" | "vulnerable" | "fixed";
+  status: "pending" | "scanning" | "clean" | "vulnerable" | "fixed" | "failed";
   triggered_at: string;
   completed_at: string | null;
   repositories?: Pick<Repository, "full_name">;

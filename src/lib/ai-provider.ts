@@ -7,7 +7,7 @@
  * Falls back automatically when 0G fails (timeout, error, rate limit).
  */
 import { createOpenAI } from "@ai-sdk/openai";
-import { createProvider } from "ai";
+import type { z } from "zod";
 
 const zgBaseUrl = process.env.ZERO_GRAVITY_BASE_URL;
 const zgApiKey = process.env.ZERO_GRAVITY_API_KEY;
@@ -80,7 +80,6 @@ export async function generateObjectWithFallback<Z extends z.ZodType>({
   modelId?: string;
 }) {
   const { generateObject: origGenerateObject } = await import("ai");
-  const z = await import("zod");
 
   try {
     // Try 0G first

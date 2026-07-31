@@ -44,12 +44,12 @@ export default function SecurityAlertEmail({
             url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap",
             format: "woff2",
           }}
-          fontWeight={[400, 500, 600, 700]}
+          fontWeight={400}
           fontStyle="normal"
         />
       </Head>
       <Preview>Krypta Security Alert — {severity} Severity</Preview>
-      <TailWind>
+      <Tailwind>
         <Section className="bg-gray-50">
           <Container className="max-w-lg mx-auto bg-white rounded-lg p-8 shadow-sm">
             <Section className="text-center mb-6">
@@ -127,7 +127,7 @@ export default function SecurityAlertEmail({
             </Section>
           </Container>
         </Section>
-      </TailWind>
+      </Tailwind>
     </Html>
   );
 }

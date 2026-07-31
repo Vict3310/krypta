@@ -8,9 +8,6 @@ Sentry.init({
   // Performance Monitoring
   tracesSampleRate: 1.0,
 
-  // Set the transaction trace sample rate for profiling
-  profilerSampleRate: 1.0,
-
   // Enable Debug (set to false in production)
   debug: false,
 

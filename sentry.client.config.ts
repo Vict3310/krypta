@@ -10,14 +10,10 @@ Sentry.init({
   // Performance Monitoring
   tracesSampleRate: 0.1, // Lower for client to reduce noise
 
-  // Set the transaction trace sample rate for profiling
-  profilerSampleRate: 0.1,
-
   // Enable Debug (set to false in production)
   debug: false,
 
-  // Don't send PII
-  stripValues: true,
+  // Don't send PII — use Sentry Data Scrubbing settings in the dashboard
   replaysOnErrorSampleRate: 1.0,
   replaysSessionSampleRate: 0.01,
 
