@@ -14,6 +14,8 @@ import {
   Loader2,
   AlertCircle,
   Star,
+  Check,
+  AlertOctagon,
 } from "lucide-react";
 import type { Scan, Vulnerability } from "@/lib/types";
 
@@ -404,8 +406,24 @@ export default function DashboardPage() {
                       <span className="text-xs sm:text-sm font-medium text-sf-text-primary block truncate max-w-[150px] sm:max-w-none">
                         {repo.full_name}
                       </span>
-                      <span className="text-[10px] sm:text-xs text-sf-text-tertiary">
-                        Branch: {repo.default_branch || "main"}
+                      <span className="text-[10px] sm:text-xs text-sf-text-tertiary flex items-center gap-1.5">
+                        <span>Branch: {repo.default_branch || "main"}</span>
+                        {repo.verification_status === "verified" ? (
+                          <span className="inline-flex items-center gap-0.5 text-emerald-600">
+                            <Check className="h-3 w-3" />
+                            Verified
+                          </span>
+                        ) : repo.verification_status === "pending" ? (
+                          <span className="inline-flex items-center gap-0.5 text-amber-600">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            Verifying
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-0.5 text-red-600">
+                            <AlertOctagon className="h-3 w-3" />
+                            Unverified
+                          </span>
+                        )}
                       </span>
                     </div>
                   </div>
