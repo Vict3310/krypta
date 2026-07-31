@@ -14,6 +14,10 @@ export type Repository = {
   is_active: boolean;
   webhook_id: number | null;
   default_branch: string;
+  verification_status: "unverified" | "pending" | "verified" | "failed";
+  verification_method: "github_app" | "dns_txt" | "file_upload" | null;
+  verified_at: string | null;
+  verification_token: string | null;
   created_at: string;
 };
 
@@ -97,10 +101,13 @@ export type ExploitScanJob = {
   id: string;
   user_id: string;
   target_url: string;
+  repository_id: string | null;
   status: "pending" | "running" | "completed" | "failed";
   vulnerability_ids: string[];
   total_exploits: number;
   results_summary: Record<string, number>;
+  verification_method: "github_app" | "dns_txt" | "file_upload" | null;
+  verified_at: string | null;
   started_at: string | null;
   completed_at: string | null;
   created_at: string;
@@ -153,5 +160,16 @@ export type VulnerabilityTriage = {
   reasoning: string;
   exploit_chain: string;
   remediation_order: number;
+  created_at: string;
+};
+
+export type ScanAuthorization = {
+  id: string;
+  user_id: string;
+  target_url: string;
+  target_type: "github_repo" | "live_url";
+  tos_version: string;
+  authorized_at: string;
+  expires_at: string | null;
   created_at: string;
 };

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
+import { verifyViaGitHubApp } from "@/lib/verification";
 
 export async function POST(request: Request) {
   console.log("[API /github/connect] === Connect endpoint started ===");
@@ -72,6 +73,15 @@ export async function POST(request: Request) {
       full_name: data.full_name,
       user_id: data.user_id,
     });
+
+    // Auto-verify via GitHub App — installing the GitHub App on a repo
+    // already proves the user has admin access to it.
+    const verificationResult = await verifyViaGitHubApp(data.id);
+    if (verificationResult.success) {
+      console.log("[API /github/connect] ✅ Auto-verified via GitHub App:", data.id);
+    } else {
+      console.warn("[API /github/connect] ⚠️ Verification failed (non-fatal):", verificationResult.error);
+    }
 
     return NextResponse.json({
       message: "Repository connected successfully",
