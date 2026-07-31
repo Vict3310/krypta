@@ -6,6 +6,7 @@ import { ArrowLeft, ShieldAlert, CheckCircle2, Clock, X, Brain, Sparkles } from 
 import { toast } from "sonner";
 import { createClient } from "@/utils/supabase/client";
 import type { Scan, Vulnerability, VulnerabilityTriage, FixReview } from "@/lib/types";
+import { VulnerabilityGrid } from "./vulnerability-grid";
 
 interface VulnerabilityTimelineEvent {
   status: string;
@@ -350,211 +351,18 @@ export default function ScanDetailPage({ params }: { params: Promise<{ id: strin
           <p className="text-sf-text-secondary text-sm sm:text-base">This scan came back completely clean.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-          {/* Vulnerability list */}
-          <div className="lg:col-span-1 space-y-2">
-            {vulnerabilities.map((v) => (
-              <button
-                key={v.id}
-                onClick={() => setSelected(v)}
-                className={`w-full text-left rounded-xl border p-3 sm:p-4 transition-all ${selected?.id === v.id
-                  ? "border-sf-accent/30 bg-sf-accent/5 shadow-[0_0_20px_-10px_rgba(227,74,50,0.2)]"
-                  : "border-black/5 bg-white hover:bg-black/[0.02]"
-                  }`}
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <span
-                    className={`text-xs font-medium px-2 py-0.5 rounded-full border ${severityStyle[v.severity] ?? "bg-gray-100 text-gray-600 border-gray-200"
-                      }`}
-                  >
-                    {v.severity}
-                  </span>
-                  {aiTriage.length > 0 && (() => {
-                    const triage = getTriageInfo(v.id);
-                    if (!triage) return null;
-                    const color = getPriorityColor(triage.priority_score);
-                    return (
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${color}`}>
-                        P{Math.round(triage.priority_score)}
-                      </span>
-                    );
-                  })()}
-                  {v.status !== "open" && (
-                    <span className="text-xs text-sf-text-tertiary capitalize">{v.status}</span>
-                  )}
-                </div>
-                <p className="text-sm font-medium text-sf-text-primary truncate">
-                  {v.vulnerability_type ?? "Unknown"}
-                </p>
-                <p className="text-xs text-sf-text-tertiary mt-0.5 truncate">
-                  {v.file_path ?? "Unknown file"}
-                  {v.line ? `:${v.line}` : ""}
-                </p>
-              </button>
-            ))}
-          </div>
-
-          {/* Detail panel */}
-          {selected && (
-            <div className="lg:col-span-2 space-y-4">
-              <div className="rounded-[28px] border border-black/5 bg-white p-4 sm:p-6 shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_14px_30px_-18px_rgba(35,36,39,0.25)]">
-                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-4 gap-3">
-                  <h2 className="text-base sm:text-lg font-semibold text-sf-text-primary flex items-center gap-2">
-                    <ShieldAlert className="h-4 w-4 sm:h-5 sm:w-5 text-sf-accent" />
-                    {selected.vulnerability_type}
-                  </h2>
-                  {selected.status === "open" && (
-                    <div className="flex gap-2 shrink-0">
-                      <button
-                        onClick={() => handleSnooze(selected)}
-                        className="inline-flex items-center gap-1 rounded-full border border-black/10 bg-white px-2.5 py-1.5 sm:px-3 sm:py-1.5 text-[11px] sm:text-xs font-medium text-sf-text-secondary shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_8px_18px_-10px_rgba(35,36,39,0.3)] transition-all hover:bg-black/5"
-                      >
-                        <Clock className="h-3 w-3" />
-                        Snooze
-                      </button>
-                      <button
-                        onClick={() => handleDismiss(selected)}
-                        className="inline-flex items-center gap-1 rounded-full border border-black/10 bg-white px-2.5 py-1.5 sm:px-3 sm:py-1.5 text-[11px] sm:text-xs font-medium text-red-600 shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_8px_18px_-10px_rgba(35,36,39,0.3)] transition-all hover:bg-red-50"
-                      >
-                        <X className="h-3 w-3" />
-                        Dismiss
-                      </button>
-                    </div>
-                  )}
-                </div>
-                <p className="text-sm leading-relaxed text-sf-text-secondary">
-                  {selected.plain_english_explanation}
-                </p>
-                {selected.file_path && (
-                  <p className="text-xs text-sf-text-tertiary mt-3 font-mono bg-black/[0.02] px-3 py-1.5 rounded-lg inline-block">
-                    {selected.file_path}
-                    {selected.line ? `:${selected.line}` : ""}
-                  </p>
-                )}
-
-                {selected.vulnerable_code && (
-                  <div className="rounded-[28px] border border-black/5 bg-[#171719] overflow-hidden shadow-[0_1px_0_rgba(255,255,255,0.08)_inset,0_20px_40px_-20px_rgba(23,23,25,0.8)]">
-                    <div className="flex items-center justify-between border-b border-white/5 px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-2">
-                          <div className="h-2.5 w-2.5 rounded-full bg-red-500" />
-                          <div className="h-2.5 w-2.5 rounded-full bg-amber-500" />
-                          <div className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
-                        </div>
-                        <span className="text-xs text-white/40 font-mono">
-                          {selected.file_path}
-                          {selected.line ? `:${selected.line}` : ""}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className="text-red-400">Vulnerable</span>
-                        {selected.fixed_code && <span className="text-white/20">→</span>}
-                        {selected.fixed_code && <span className="text-emerald-400">Fixed</span>}
-                      </div>
-                    </div>
-
-                    {/* Vulnerable code */}
-                    <div className="p-4 overflow-x-auto">
-                      <pre className="bg-red-500/10 border-l-4 border-red-500 -mx-4 px-4 py-2 text-red-300 whitespace-pre-wrap font-mono text-sm">
-                        {selected.vulnerable_code}
-                      </pre>
-                    </div>
-
-                    {/* Fixed code */}
-                    {selected.fixed_code && (
-                      <div className="border-t border-white/5 p-4 overflow-x-auto">
-                        <pre className="bg-emerald-500/10 border-l-4 border-emerald-500 -mx-4 px-4 py-2 text-emerald-300 whitespace-pre-wrap font-mono text-sm">
-                          {selected.fixed_code}
-                        </pre>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {selected.fixed_code && (
-                  <div className="rounded-[28px] border border-black/5 bg-white p-4 sm:p-6 shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_14px_30px_-18px_rgba(35,36,39,0.25)]">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-sm font-semibold text-sf-text-primary flex items-center gap-2">
-                        <Sparkles className="h-3.5 w-3.5 text-sf-accent" />
-                        AI Fix Review
-                      </h3>
-                      <button
-                        onClick={() => handleAiReviewFix(selected)}
-                        disabled={fixReviewLoading[selected.id]}
-                        className="inline-flex items-center gap-1.5 rounded-full bg-[#171719] text-white px-2.5 py-1.5 sm:px-3 sm:py-1.5 text-[10px] sm:text-xs font-medium shadow-sm transition-all hover:-translate-y-0.5 disabled:opacity-50 shrink-0"
-                      >
-                        {fixReviewLoading[selected.id] ? (
-                          <>
-                            <Clock className="h-3 w-3 animate-spin" />
-                            Reviewing...
-                          </>
-                        ) : getFixReview(selected.id) ? (
-                          <>
-                            <Sparkles className="h-3 w-3" />
-                            Re-review
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles className="h-3 w-3" />
-                            Review Fix
-                          </>
-                        )}
-                      </button>
-                    </div>
-
-                    {getFixReview(selected.id) ? (() => {
-                      const review = getFixReview(selected.id)!;
-                      return (
-                        <div className="space-y-3">
-                          <div className="flex items-center gap-2">
-                            {review.pass ? (
-                              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                            ) : (
-                              <X className="h-4 w-4 text-red-500" />
-                            )}
-                            <span className={`text-sm font-semibold ${review.pass ? "text-emerald-600" : "text-red-600"}`}>
-                              {review.pass ? "Fix looks good" : "Issues found"}
-                            </span>
-                            <span className="text-[10px] text-sf-text-tertiary">Score: {review.score}/10 · Confidence: {Math.round(review.confidence * 100)}%</span>
-                          </div>
-
-                          {review.issues && review.issues.length > 0 && (
-                            <div className="rounded-lg bg-red-50 p-2.5 border border-red-100">
-                              <p className="text-xs font-medium text-red-700 mb-1">Issues:</p>
-                              {review.issues.map((issue, i) => (
-                                <p key={i} className="text-[11px] text-red-600">• {issue}</p>
-                              ))}
-                            </div>
-                          )}
-
-                          {review.suggestions && review.suggestions.length > 0 && (
-                            <div className="rounded-lg bg-blue-50 p-2.5 border border-blue-100">
-                              <p className="text-xs font-medium text-blue-700 mb-1">Suggestions:</p>
-                              {review.suggestions.map((s, i) => (
-                                <p key={i} className="text-[11px] text-blue-600">• {s}</p>
-                              ))}
-                            </div>
-                          )}
-
-                          {review.security_risks && review.security_risks.length > 0 && (
-                            <div className="rounded-lg bg-orange-50 p-2.5 border border-orange-100">
-                              <p className="text-xs font-medium text-orange-700 mb-1">Security Risks:</p>
-                              {review.security_risks.map((r, i) => (
-                                <p key={i} className="text-[11px] text-orange-600">• {r}</p>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })() : (
-                      <p className="text-xs text-sf-text-tertiary text-center py-4">Click "Review Fix" to validate the AI-generated fix</p>
-                    )}
-                  </div>
-                )}
-              </div>
-          )}
-            </div>
-          )}
+        <VulnerabilityGrid
+          vulnerabilities={vulnerabilities}
+          selected={selected}
+          severityStyle={severityStyle}
+          aiTriage={aiTriage}
+          getTriageInfo={getTriageInfo}
+          getPriorityColor={getPriorityColor}
+          fixReviews={fixReviews}
+          fixReviewLoading={fixReviewLoading}
+          handleAiReviewFix={handleAiReviewFix}
+        />
+      )}
         </main>
       );
 }

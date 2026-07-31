@@ -99,10 +99,17 @@ CREATE POLICY "Users can create their own scan authorizations"
   WITH CHECK (auth.uid() = user_id);
 
 -- ============================================================
--- 4. Add real-time updates for verification changes
+-- 4. Add real-time updates for verification changes (skip if already added)
 -- ============================================================
 
-ALTER PUBLICATION supabase_realtime ADD TABLE public.exploit_scan_jobs;
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'exploit_scan_jobs'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.exploit_scan_jobs;
+  END IF;
+END $$;
 
 -- ============================================================
 -- 5. Function: check if a repository is verified for exploit scanning

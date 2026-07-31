@@ -45,6 +45,7 @@ create table if not exists public.repositories (
   created_at timestamptz not null default now()
 );
 alter table public.repositories enable row level security;
+drop policy if exists "Users can manage own repositories" on public.repositories;
 create policy "Users can manage own repositories" on public.repositories
   for all using (auth.uid() = user_id);
 

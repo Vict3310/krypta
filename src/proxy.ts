@@ -2,7 +2,7 @@ import { type NextRequest } from 'next/server'
 import { updateSession } from '@/utils/supabase/middleware'
 import { apiLimiter } from '@/lib/rate-limit'
 
-export async function middleware(request: NextRequest) {
+export default async function proxy(request: NextRequest) {
   // Rate limiting
   const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
   const limiterKey = `${request.nextUrl.pathname}:${ip}`
