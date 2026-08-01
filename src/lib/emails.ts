@@ -3,6 +3,37 @@ import { Resend } from 'resend';
 // Initialize Resend
 const resend = new Resend(process.env.RESEND_API_KEY || 're_mock');
 
+export async function sendSecurityAlertEmail(params: {
+  to: string;
+  subject: string;
+  body: string;
+}) {
+  try {
+    const { data, error } = await resend.emails.send({
+      from: 'Krypta Security <security@krypta.dev>',
+      to: [params.to],
+      subject: params.subject,
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background-color: #000; color: #fff; padding: 40px; border-radius: 12px; border: 1px solid #333;">
+          <h2 style="color: #ef4444; margin-bottom: 20px;">Security Alert</h2>
+          <p style="color: #a1a1aa; font-size: 16px; line-height: 1.5; white-space: pre-wrap;">${params.body}</p>
+        </div>
+      `,
+    });
+
+    if (error) {
+      console.error("Resend API Error:", error);
+      return false;
+    }
+
+    console.log("Security email sent:", data);
+    return true;
+  } catch (error) {
+    console.error("Failed to send security email:", error);
+    return false;
+  }
+}
+
 export async function sendCriticalVulnerabilityEmail(
   userEmail: string,
   repoName: string,

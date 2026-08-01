@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
+import { recordAuthSuccess } from "@/lib/security-monitor";
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
@@ -26,6 +27,7 @@ export async function GET(request: Request) {
     }
 
     console.log("[Auth Callback] Session established for user:", data.session.user.id);
+    await recordAuthSuccess(data.session.user.id, request.headers.get("x-forwarded-for") || "unknown");
     return NextResponse.redirect(`${origin}${next}`);
   } catch (err) {
     console.error("[Auth Callback] Unexpected error:", err);

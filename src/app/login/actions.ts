@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
+import { recordAuthFailure } from "@/lib/security-monitor";
 
 const getBaseUrl = () => {
   if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL;
@@ -22,6 +23,7 @@ export async function signInWithGitHub() {
 
   if (error) {
     console.error("[GitHub OAuth] Supabase OAuth error:", error.message);
+    await recordAuthFailure("unknown", null);
     redirect("/login?error=github_failed");
   }
 
@@ -48,6 +50,7 @@ export async function signInWithMagicLink(formData: FormData) {
   });
 
   if (error) {
+    await recordAuthFailure("unknown", null);
     redirect("/login?error=magic_link_failed");
   }
 
