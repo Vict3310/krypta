@@ -34,6 +34,10 @@ class InMemoryLimiter {
 let redisLimiter: Ratelimit | null = null;
 let memoryLimiter: InMemoryLimiter | null = null;
 
+const globalMemoryState = globalThis as typeof globalThis & {
+  __kryptaMemoryLimiter?: InMemoryLimiter;
+};
+
 function getLimiter(): InMemoryLimiter | Ratelimit {
   if (!redisLimiter && process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
     const redis = new Redis({
@@ -48,7 +52,8 @@ function getLimiter(): InMemoryLimiter | Ratelimit {
   }
 
   if (!memoryLimiter) {
-    memoryLimiter = new InMemoryLimiter(10, 60000);
+    memoryLimiter = globalMemoryState.__kryptaMemoryLimiter ?? new InMemoryLimiter(10, 60000);
+    globalMemoryState.__kryptaMemoryLimiter = memoryLimiter;
   }
 
   return redisLimiter || memoryLimiter;

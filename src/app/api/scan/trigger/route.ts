@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/utils/supabase/service";
-import { createClient } from "@/utils/supabase/server";
+import { requireUser } from "@/lib/auth";
+import { apiLimiter } from "@/lib/rate-limit";
 import { Octokit } from "octokit";
 import { createSign } from "node:crypto";
 import { generateObjectWithFallback } from "@/lib/ai-provider";
@@ -185,12 +186,15 @@ function scanFileContent(content: string, filePath: string): Promise<any[]> {
 }
 
 export async function POST(req: Request) {
-  const supabase = await createClient();
-  const { data: { session } } = await supabase.auth.getSession();
-
-  if (!session?.user) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  const ip = req.headers.get("x-forwarded-for") || "unknown";
+  const { success: rateLimitOk } = await apiLimiter(ip);
+  if (!rateLimitOk) {
+    return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
   }
+
+  const auth = await requireUser();
+  if ("error" in auth) return auth.error;
+  const session = { user: auth.user };
 
   // Use service role client for DB operations (bypasses RLS)
   const db = createServiceRoleClient();
@@ -214,7 +218,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Repository not found or access denied" }, { status: 404 });
     }
 
-    console.log("[Scan] Starting scan for:", repo.full_name);
+    console.log("[Scan] Starting scan for:", repo.full_name.replace(/[\r\n]/g, ""));
 
     // Create scan record
     console.log("[Scan] Creating scan record...");
@@ -296,7 +300,7 @@ export async function POST(req: Request) {
 
         scannedFiles++;
         try {
-          console.log(`[Scan] Fetching file: ${file.path}`);
+          console.log(`[Scan] Fetching file: ${file.path.replace(/[\r\n]/g, "")}`);
           const { data: fileData } = await octokit.rest.repos.getContent({
             owner,
             repo: repoName,
@@ -305,23 +309,23 @@ export async function POST(req: Request) {
           });
 
           if ((fileData as any)?.type !== "file") {
-            console.log(`[Scan] Skipped non-file: ${file.path}`);
+            console.log(`[Scan] Skipped non-file: ${file.path.replace(/[\r\n]/g, "")}`);
             continue;
           }
 
           const content = Buffer.from((fileData as any).content, "base64").toString("utf-8");
-          console.log(`[Scan] Scanning file: ${file.path} (${content.length} bytes)`);
+          console.log(`[Scan] Scanning file: ${file.path.replace(/[\r\n]/g, "")} (${content.length} bytes)`);
 
           if (content.length > 50000) {
-            console.log(`[Scan] Skipped large file: ${file.path}`);
+            console.log(`[Scan] Skipped large file: ${file.path.replace(/[\r\n]/g, "")}`);
             continue;
           }
 
           const findings = await scanFileContent(content, file.path);
-          console.log(`[Scan] Found ${findings.length} issues in ${file.path}`);
+          console.log(`[Scan] Found ${findings.length} issues in ${file.path.replace(/[\r\n]/g, "")}`);
           batchResults.push({ file, findings });
         } catch (err: any) {
-          console.error(`[Scan] Error fetching ${file.path}:`, err.message);
+          console.error(`[Scan] Error fetching file:`, err.message);
         }
       }
 
@@ -388,9 +392,10 @@ export async function POST(req: Request) {
             .single();
 
           const email = profile?.email;
-          if (email && process.env.RESEND_API_KEY) {
-            const dashboardUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://pxxl.vercel.app"}/dashboard/scans`;
-            await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/email/alert`, {
+          const appUrl = process.env.NEXT_PUBLIC_SITE_URL;
+          if (email && process.env.RESEND_API_KEY && appUrl) {
+            const dashboardUrl = `${appUrl}/dashboard/scans`;
+            await fetch(`${appUrl}/api/email/alert`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
@@ -499,7 +504,7 @@ export async function POST(req: Request) {
       vulnerabilities: totalFindings,
     });
   } catch (error) {
-    console.error("[Scan] Error at step:", error);
+    console.error("[Scan] Error at step:", (error as Error).message);
     console.error("[Scan] Stack:", (error as Error).stack);
     return NextResponse.json(
       { error: "Internal server error", details: (error as Error).message },

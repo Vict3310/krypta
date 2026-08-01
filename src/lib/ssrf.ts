@@ -1,6 +1,73 @@
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 
+function normalizeHostname(raw: string): string {
+  const trimmed = raw.trim().replace(/\.$/, "").toLowerCase();
+  if (!trimmed) return trimmed;
+
+  if (/^\d+$/.test(trimmed)) {
+    return ipv4FromDecimal(trimmed) || trimmed;
+  }
+
+  if (/^0x[0-9a-f]+$/i.test(trimmed)) {
+    return ipv4FromHex(trimmed) || trimmed;
+  }
+
+  if (/^0[0-7]+$/i.test(trimmed)) {
+    return ipv4FromOctal(trimmed) || trimmed;
+  }
+
+  return trimmed;
+}
+
+function ipv4FromDecimal(value: string): string | null {
+  try {
+    const numeric = Number(value);
+    if (!Number.isInteger(numeric) || numeric < 0 || numeric > 4294967295) return null;
+    const octets = [0, 0, 0, 0];
+    let remaining = numeric;
+    for (let i = 3; i >= 0; i--) {
+      octets[i] = remaining % 256;
+      remaining = Math.floor(remaining / 256);
+    }
+    return octets.join(".");
+  } catch {
+    return null;
+  }
+}
+
+function ipv4FromHex(value: string): string | null {
+  try {
+    const numeric = Number.parseInt(value, 16);
+    if (!Number.isInteger(numeric) || numeric < 0 || numeric > 4294967295) return null;
+    const octets = [0, 0, 0, 0];
+    let remaining = numeric;
+    for (let i = 3; i >= 0; i--) {
+      octets[i] = remaining % 256;
+      remaining = Math.floor(remaining / 256);
+    }
+    return octets.join(".");
+  } catch {
+    return null;
+  }
+}
+
+function ipv4FromOctal(value: string): string | null {
+  try {
+    const numeric = parseInt(value, 8);
+    if (!Number.isFinite(numeric) || numeric < 0 || numeric > 4294967295) return null;
+    const octets = [0, 0, 0, 0];
+    let remaining = numeric;
+    for (let i = 3; i >= 0; i--) {
+      octets[i] = remaining % 256;
+      remaining = Math.floor(remaining / 256);
+    }
+    return octets.join(".");
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Validate a user-supplied URL for outbound HTTP (exploit scans).
  * Blocks non-http(s), credentials, localhost, private, and link-local targets.
@@ -28,14 +95,17 @@ export async function assertSafeTargetUrl(
     return { ok: false, error: "URLs with credentials are not allowed" };
   }
 
-  const hostname = parsed.hostname.replace(/^\[|\]$/g, "").toLowerCase();
+  const hostname = normalizeHostname(parsed.hostname.replace(/^\[|\]$/g, ""));
 
   if (
     hostname === "localhost" ||
     hostname === "metadata.google.internal" ||
+    hostname === "metadata" ||
     hostname.endsWith(".localhost") ||
     hostname.endsWith(".local") ||
-    hostname.endsWith(".internal")
+    hostname.endsWith(".internal") ||
+    hostname.startsWith("169.254.") ||
+    hostname.startsWith("0.")
   ) {
     return { ok: false, error: "Target host is not allowed" };
   }

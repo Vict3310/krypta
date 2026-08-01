@@ -340,8 +340,7 @@ export async function isRepositoryVerified(
 /**
  * Get verification status for any URL (for arbitrary target URLs not linked to repos).
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export async function getTargetVerificationStatus(_targetUrl: string): Promise<{
+export async function getTargetVerificationStatus(targetUrl: string): Promise<{
   isVerified: boolean;
   method: VerificationMethod | null;
   verifiedAt: string | null;
@@ -350,21 +349,29 @@ export async function getTargetVerificationStatus(_targetUrl: string): Promise<{
   const db = createServiceRoleClient();
 
   try {
-    // Try to match against existing repositories
-    const { data: repo } = await db
-      .from("repositories")
-      .select("verification_status, verification_method, verified_at")
-      .eq("verification_status", "verified")
-      .limit(1);
+    let hostname: string;
+    try {
+      hostname = new URL(targetUrl).hostname.replace(/^www\./, "");
+    } catch {
+      return { isVerified: false, method: null, verifiedAt: null, error: "Invalid URL" };
+    }
 
-    // For now, all GitHub repos are auto-verified, so if any exist, return true
-    // In a future enhancement, this could match against a targets table
-    if (repo && repo.length > 0) {
-      return {
-        isVerified: true,
-        method: "github_app",
-        verifiedAt: repo[0].verified_at,
-      };
+    const { data: repos } = await db
+      .from("repositories")
+      .select("verification_status, verification_method, verified_at, full_name")
+      .eq("verification_status", "verified");
+
+    if (repos) {
+      for (const repo of repos) {
+        const repoDomain = repo.full_name?.split("/")[1]?.toLowerCase();
+        if (repoDomain && hostname.includes(repoDomain)) {
+          return {
+            isVerified: true,
+            method: repo.verification_method as VerificationMethod,
+            verifiedAt: repo.verified_at,
+          };
+        }
+      }
     }
 
     return { isVerified: false, method: null, verifiedAt: null };

@@ -4,7 +4,7 @@
  */
 import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
-import { validateApiKey } from "@/lib/api-auth";
+import { hashApiKey, validateApiKey } from "@/lib/api-auth";
 import { createServiceRoleClient } from "@/utils/supabase/service";
 import { randomBytes } from "crypto";
 
@@ -65,7 +65,7 @@ export async function POST(request: Request) {
 
     // Generate API key
     const apiKey = `krypta_sk_${randomBytes(32).toString("hex")}`;
-    const keyHash = btoa(apiKey); // In production, use SHA-256
+    const keyHash = hashApiKey(apiKey);
 
     const { data: apiKeyRecord, error } = await supabase
       .from("api_keys")

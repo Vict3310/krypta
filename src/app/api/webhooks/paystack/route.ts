@@ -15,6 +15,17 @@ const PaystackWebhookSchema = z.object({
   }),
 });
 
+function timingSafeEqual(left: string, right: string): boolean {
+  if (left.length !== right.length) return false;
+
+  let out = 0;
+  for (let index = 0; index < left.length; index += 1) {
+    out |= left.charCodeAt(index) ^ right.charCodeAt(index);
+  }
+
+  return out === 0;
+}
+
 export async function POST(req: Request) {
   // Rate limiting
   const ip = req.headers.get("x-forwarded-for") || "webhook";
@@ -43,7 +54,7 @@ export async function POST(req: Request) {
       .update(text)
       .digest("hex");
 
-    if (hash !== signature) {
+    if (!timingSafeEqual(hash, signature)) {
       Sentry.captureEvent({
         level: "warning",
         message: "Invalid Paystack signature",
@@ -73,7 +84,7 @@ export async function POST(req: Request) {
           .from("profiles")
           .update({ plan: "pro" })
           .eq("id", (userData as any).id);
-        console.log(`✅ Paystack: Upgraded ${email} to Pro`);
+        console.log("✅ Paystack: Upgraded user to Pro");
       }
     }
 
@@ -88,7 +99,7 @@ export async function POST(req: Request) {
           .from("profiles")
           .update({ plan: "free" })
           .eq("id", (userData as any).id);
-        console.log(`ℹ️ Paystack: Cancelled ${email}`);
+        console.log("ℹ️ Paystack: Cancelled subscription");
       }
     }
 

@@ -15,9 +15,9 @@ export async function POST(request: Request) {
     }
 
     const supabase = createServiceRoleClient();
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { user: sessionUser } } = await supabase.auth.getUser();
 
-    if (!session) {
+    if (!sessionUser) {
       return NextResponse.json({ error: "Unauthorized - please log in first" }, { status: 401 });
     }
 
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
       .from("team_members")
       .select("id")
       .eq("team_id", invitation.team_id)
-      .eq("user_id", session.user.id)
+      .eq("user_id", sessionUser.id)
       .single();
 
     if (existingMember) {
@@ -60,7 +60,7 @@ export async function POST(request: Request) {
       .from("team_members")
       .insert({
         team_id: invitation.team_id,
-        user_id: session.user.id,
+        user_id: sessionUser.id,
         role: invitation.role,
       });
 

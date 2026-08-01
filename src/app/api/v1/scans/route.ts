@@ -29,10 +29,10 @@ export async function GET(request: Request) {
       .from("scans")
       .select(`
         *,
-        repositories(full_name, default_branch),
+        repositories!inner(full_name, default_branch, user_id),
         scan_results(count)
       `, { count: "exact" })
-      .eq("repository_id", "owner")
+      .eq("repositories.user_id", auth.user.id)
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
@@ -159,10 +159,11 @@ export async function GET_STATIC(request: Request, { params }: { params: { id: s
       .from("scans")
       .select(`
         *,
-        repositories(full_name, default_branch),
+        repositories!inner(full_name, default_branch, user_id),
         scan_results(*)
       `)
       .eq("id", params.id)
+      .eq("repositories.user_id", auth.user.id)
       .single();
 
     if (error || !scan) {
@@ -183,28 +184,16 @@ export async function GET_STATIC(request: Request, { params }: { params: { id: s
   }
 }
 
-// Helper function to trigger scan (should be moved to a worker in production)
+// TODO: replace with a proper job queue (Upstash QStash, Bull, etc.) before production
 async function triggerScan(
   repositoryId: string,
   branch: string,
-  commitSha?: string | null
+  _commitSha?: string | null
 ) {
-  // In production, this should use a job queue (e.g., Bull, Upstash Q)
-  // For now, we'll just update the status
   const supabase = createServiceRoleClient();
-
   await supabase
     .from("scans")
     .update({ status: "scanning" })
     .eq("repository_id", repositoryId)
     .eq("branch", branch);
-
-  // Simulate scan completion (in production, use actual scanning logic)
-  setTimeout(async () => {
-    await supabase
-      .from("scans")
-      .update({ status: "clean", completed_at: new Date().toISOString() })
-      .eq("repository_id", repositoryId)
-      .eq("branch", branch);
-  }, 5000);
 }

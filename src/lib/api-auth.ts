@@ -6,6 +6,7 @@ import { createHash } from "node:crypto";
 import { createServiceRoleClient } from "@/utils/supabase/service";
 import * as Sentry from "@sentry/nextjs";
 import type { User } from "@supabase/supabase-js";
+import { safeEqual } from "@/lib/auth";
 
 export function hashApiKey(key: string): string {
   return createHash("sha256").update(key).digest("hex");
@@ -29,13 +30,14 @@ export async function validateApiKey(request: Request): Promise<
   const supabase = createServiceRoleClient();
   const keyHash = hashApiKey(token);
 
-  const { data: apiKey, error: apiKeyError } = await supabase
+  const { data, error: apiKeyError } = await supabase
     .from("api_keys")
-    .select("user_id, name, created_at")
+    .select("user_id, name, created_at, key_hash")
     .eq("key_hash", keyHash)
-    .single();
+    .limit(1);
 
-  if (apiKeyError || !apiKey) {
+  const apiKey = data?.[0];
+  if (apiKeyError || !apiKey || !safeEqual(apiKey.key_hash, keyHash)) {
     if (apiKeyError) Sentry.captureException(apiKeyError);
     return { error: "Invalid API key", status: 401 };
   }
@@ -48,6 +50,10 @@ export async function validateApiKey(request: Request): Promise<
 
   return {
     user: { id: apiKey.user_id },
-    apiKey,
+    apiKey: {
+      user_id: apiKey.user_id,
+      name: apiKey.name,
+      created_at: apiKey.created_at,
+    },
   };
 }

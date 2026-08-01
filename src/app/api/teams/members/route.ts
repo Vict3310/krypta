@@ -18,9 +18,9 @@ export async function GET(request: Request) {
     }
 
     const supabase = createServiceRoleClient();
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { user: sessionUser } } = await supabase.auth.getUser();
 
-    if (!session) {
+    if (!sessionUser) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -29,7 +29,7 @@ export async function GET(request: Request) {
       .from("team_members")
       .select("role")
       .eq("team_id", teamId)
-      .eq("user_id", session.user.id)
+      .eq("user_id", sessionUser.id)
       .single();
 
     if (!membership) {
@@ -75,9 +75,9 @@ export async function POST(request: Request) {
     }
 
     const supabase = createServiceRoleClient();
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { user: sessionUser } } = await supabase.auth.getUser();
 
-    if (!session) {
+    if (!sessionUser) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -86,7 +86,7 @@ export async function POST(request: Request) {
       .from("team_members")
       .select("role")
       .eq("team_id", teamId)
-      .eq("user_id", session.user.id)
+      .eq("user_id", sessionUser.id)
       .single();
 
     if (!membership || !["owner", "admin"].includes(membership.role)) {
@@ -104,7 +104,7 @@ export async function POST(request: Request) {
         team_id: teamId,
         email,
         role,
-        invited_by: session.user.id,
+        invited_by: sessionUser.id,
         token,
         expires_at: expiresAt,
       })
@@ -140,9 +140,9 @@ export async function DELETE(request: Request) {
     }
 
     const supabase = createServiceRoleClient();
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { user: sessionUser } } = await supabase.auth.getUser();
 
-    if (!session) {
+    if (!sessionUser) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -151,7 +151,7 @@ export async function DELETE(request: Request) {
       .from("team_members")
       .select("role")
       .eq("team_id", teamId)
-      .eq("user_id", session.user.id)
+      .eq("user_id", sessionUser.id)
       .single();
 
     if (!membership || !["owner", "admin"].includes(membership.role)) {

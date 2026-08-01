@@ -49,7 +49,7 @@ export async function POST(req: Request) {
     const hmac = crypto.createHmac("sha256", WEBHOOK_SECRET);
     const digest = "sha256=" + hmac.update(payloadText).digest("hex");
 
-    if (!signature || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(digest))) {
+    if (!signature || !timingSafeEqual(signature, digest)) {
       Sentry.captureEvent({
         level: "warning",
         message: "Invalid webhook signature",
@@ -279,6 +279,17 @@ export async function POST(req: Request) {
     console.error("Webhook error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
+}
+
+function timingSafeEqual(left: string, right: string): boolean {
+  if (left.length !== right.length) return false;
+
+  let out = 0;
+  for (let index = 0; index < left.length; index += 1) {
+    out |= left.charCodeAt(index) ^ right.charCodeAt(index);
+  }
+
+  return out === 0;
 }
 
 function isCodeFile(filePath: string): boolean {

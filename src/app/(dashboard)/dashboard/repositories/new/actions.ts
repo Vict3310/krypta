@@ -6,9 +6,9 @@ import { revalidatePath } from "next/cache";
 
 export async function connectRepository(formData: FormData) {
   const supabase = await createClient();
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-  if (!session?.user) {
+  if (authError || !user) {
     throw new Error("Unauthorized");
   }
 
@@ -25,7 +25,8 @@ export async function connectRepository(formData: FormData) {
   let webhookId = null;
 
   // Attempt to create a webhook if we have a provider token
-  const providerToken = session.provider_token;
+  const { data: { session } } = await supabase.auth.getSession();
+  const providerToken = session?.provider_token;
   if (providerToken) {
     try {
       const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://krypta.dev");
@@ -52,7 +53,7 @@ export async function connectRepository(formData: FormData) {
 
   // Insert into DB
   const { error: insertError } = await supabase.from("repositories").insert({
-    user_id: session.user.id,
+    user_id: user.id,
     github_repo_id: githubRepoId,
     full_name: repoFullName,
     default_branch: defaultBranch,
@@ -61,11 +62,11 @@ export async function connectRepository(formData: FormData) {
   });
 
   if (insertError) {
-    console.error("[DB] Failed to connect repository:", insertError);
+    console.error("[DB] Failed to connect repository");
     throw new Error(`Failed to save repository: ${insertError.message}`);
   }
 
-  console.log("[DB] Repository connected:", repoFullName);
+  console.log("[DB] Repository connected");
   revalidatePath("/dashboard/repositories/new");
   revalidatePath("/dashboard");
 }

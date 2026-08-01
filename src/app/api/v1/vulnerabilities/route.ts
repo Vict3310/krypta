@@ -31,10 +31,11 @@ export async function GET(request: Request) {
       .from("vulnerabilities")
       .select(`
         *,
-        scans(
-          repositories(full_name)
+        scans!inner(
+          repositories!inner(full_name, user_id)
         )
       `, { count: "exact" })
+      .eq("scans.repositories.user_id", auth.user.id)
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
@@ -94,12 +95,13 @@ export async function GET_STATIC(request: Request, context: any) {
       .from("vulnerabilities")
       .select(`
         *,
-        scans(
-          repositories(full_name),
+        scans!inner(
+          repositories!inner(full_name, user_id),
           scan_results(*)
         )
       `)
       .eq("id", id)
+      .eq("scans.repositories.user_id", auth.user.id)
       .single();
 
     if (error || !vulnerability) {
@@ -151,7 +153,11 @@ export async function PATCH(request: Request, context: any) {
         snoozed_until: status === "snoozed" ? snoozed_until : null,
       })
       .eq("id", id)
-      .select()
+      .select(`
+        *,
+        scans!inner(repositories!inner(user_id))
+      `)
+      .eq("scans.repositories.user_id", auth.user.id)
       .single();
 
     if (error || !vulnerability) {

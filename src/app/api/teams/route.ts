@@ -28,9 +28,9 @@ export async function POST(req: Request) {
     }
 
     const supabase = createServiceRoleClient();
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { user: sessionUser } } = await supabase.auth.getUser();
 
-    if (!session) {
+    if (!sessionUser) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -54,7 +54,7 @@ export async function POST(req: Request) {
       .insert({
         name,
         slug,
-        owner_id: session.user.id,
+        owner_id: sessionUser.id,
       })
       .select()
       .single();
@@ -69,7 +69,7 @@ export async function POST(req: Request) {
       .from("team_members")
       .insert({
         team_id: team.id,
-        user_id: session.user.id,
+        user_id: sessionUser.id,
         role: "owner",
       });
 
@@ -84,7 +84,7 @@ export async function POST(req: Request) {
     await supabase
       .from("profiles")
       .update({ default_team_id: team.id })
-      .eq("id", session.user.id);
+      .eq("id", sessionUser.id);
 
     return NextResponse.json(team, { status: 201 });
   } catch (error) {

@@ -19,9 +19,9 @@ export async function POST(req: Request) {
   }
 
   const supabase = await createClient();
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { user: sessionUser } } = await supabase.auth.getUser();
 
-  if (!session?.user) {
+  if (!sessionUser) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
@@ -38,7 +38,7 @@ export async function POST(req: Request) {
     }
 
     // Get user's email from Supabase
-    const targetEmail = email || session.user.email;
+    const targetEmail = email || sessionUser.email;
     if (!targetEmail) {
       return NextResponse.json(
         { error: "No email found" },
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
     const { data: profile } = await db
       .from("profiles")
       .select("id, plan")
-      .eq("id", session.user.id)
+      .eq("id", sessionUser.id)
       .single();
 
     if (!profile) {
@@ -84,7 +84,7 @@ export async function POST(req: Request) {
     };
 
     const amount = amountMap[planId];
-    const reference = `krypta_${session.user.id}_${Date.now()}`;
+    const reference = `krypta_${sessionUser.id}_${Date.now()}`;
 
     const response = await fetch("https://api.paystack.co/transaction/initialize", {
       method: "POST",
@@ -98,7 +98,7 @@ export async function POST(req: Request) {
         reference,
         callback_url: `${process.env.NEXT_PUBLIC_APP_URL}/billing/callback`,
         metadata: {
-          user_id: session.user.id,
+          user_id: sessionUser.id,
           plan: planId,
         },
       }),
@@ -130,9 +130,9 @@ export async function POST(req: Request) {
 // GET /api/billing/subscription — Get current subscription status
 export async function GET() {
   const supabase = await createClient();
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { user: sessionUser } } = await supabase.auth.getUser();
 
-  if (!session?.user) {
+  if (!sessionUser) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
@@ -142,7 +142,7 @@ export async function GET() {
     const { data: profile } = await db
       .from("profiles")
       .select("plan")
-      .eq("id", session.user.id)
+      .eq("id", sessionUser.id)
       .single();
 
     return NextResponse.json({

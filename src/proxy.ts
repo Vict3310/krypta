@@ -18,10 +18,10 @@ export default async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$|auth\\/callback|api\\/webhooks\\/github).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$|auth\/callback|api\/webhooks\/.*).*)',
   ],
 }
 
-// Note: auth/callback and api/webhooks/github are excluded from middleware
+// Note: auth/callback and webhook routes are excluded from middleware
 // so that Supabase can set session cookies without middleware interference,
-// and so GitHub webhooks don't trigger auth redirects.
+// and so webhooks don't trigger auth redirects.

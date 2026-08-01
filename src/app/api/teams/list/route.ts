@@ -11,9 +11,9 @@ export async function GET(request: Request) {
     const includeDetails = searchParams.get("details") === "true";
 
     const supabase = createServiceRoleClient();
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { user: sessionUser } } = await supabase.auth.getUser();
 
-    if (!session) {
+    if (!sessionUser) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -26,7 +26,7 @@ export async function GET(request: Request) {
           team_members!inner(role, joined_at),
           profiles!owner_id(full_name, avatar_url)
         `)
-        .or(`team_members.user_id.eq.${session.user.id},owner_id.eq.${session.user.id}`)
+        .or(`team_members.user_id.eq.${sessionUser.id},owner_id.eq.${sessionUser.id}`)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -43,7 +43,7 @@ export async function GET(request: Request) {
         joined_at,
         teams!inner(name, slug, avatar_url, owner_id)
       `)
-      .eq("user_id", session.user.id)
+      .eq("user_id", sessionUser.id)
       .order("joined_at", { ascending: false });
 
     if (error) throw error;
