@@ -13,13 +13,13 @@ export default function BillingPage() {
   useState(() => {
     async function loadPlan() {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return;
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
 
         const { data: profile } = await supabase
           .from("profiles")
           .select("plan")
-          .eq("id", session.user.id)
+          .eq("id", user.id)
           .single();
 
         if (profile) {
@@ -35,20 +35,18 @@ export default function BillingPage() {
   const handleUpgrade = async () => {
     setIsProcessing(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
         toast.error("Please sign in to continue");
         setIsProcessing(false);
         return;
       }
 
-      // Create a Paystack checkout session on the server
-      // We'll use a server action for this
       const response = await fetch("/api/billing/create-checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email: session.user.email,
+          email: user.email,
           plan: "pro",
           amount: 29000, // ₦29,000/month in Naira base unit
         }),
