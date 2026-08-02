@@ -1,9 +1,13 @@
 import { SendByte } from '@sendbyte/node';
 
-const sendbyte = new SendByte(process.env.SENDBYTE_API_KEY || '');
-
 const FROM = 'Krypta Security <hello@krypta.dev>';
 const DASHBOARD_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://krypta.dev';
+
+function getClient() {
+  const key = process.env.SENDBYTE_API_KEY;
+  if (!key) throw new Error('SENDBYTE_API_KEY not configured');
+  return new SendByte(key);
+}
 
 export async function sendSecurityAlertEmail(params: {
   to: string;
@@ -11,7 +15,7 @@ export async function sendSecurityAlertEmail(params: {
   body: string;
 }) {
   try {
-    await sendbyte.emails.send({
+    await getClient().emails.send({
       from: FROM,
       to: params.to,
       subject: params.subject,
@@ -35,7 +39,7 @@ export async function sendCriticalVulnerabilityEmail(
   vulnerabilityType: string
 ) {
   try {
-    await sendbyte.emails.send({
+    await getClient().emails.send({
       from: FROM,
       to: userEmail,
       subject: `Critical Vulnerability Detected in ${repoName}`,
