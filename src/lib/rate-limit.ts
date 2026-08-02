@@ -52,7 +52,7 @@ function getLimiter(): InMemoryLimiter | Ratelimit {
   }
 
   if (!memoryLimiter) {
-    memoryLimiter = globalMemoryState.__kryptaMemoryLimiter ?? new InMemoryLimiter(10, 60000);
+    memoryLimiter = globalMemoryState.__kryptaMemoryLimiter ?? new InMemoryLimiter(100, 60000);
     globalMemoryState.__kryptaMemoryLimiter = memoryLimiter;
   }
 

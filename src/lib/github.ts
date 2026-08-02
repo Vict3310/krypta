@@ -10,6 +10,105 @@ type Installation = {
   account?: InstallationAccount | null;
 };
 
+// ============================================================
+// GitHub App Token Caching
+// ============================================================
+// GitHub installation tokens are valid for ~1 hour. We cache
+// them to avoid hammering GitHub's installation API on every
+// scan request.
+// ============================================================
+
+const TOKEN_CACHE_TTL_MS = 50 * 60 * 1000; // 50 minutes
+
+interface CachedToken {
+  token: string;
+  expiresAt: number;
+  installationId: number;
+  owner?: string;
+}
+
+const tokenCache = new Map<string, CachedToken>();
+let cacheLock: Promise<void> | null = null;
+
+function cacheKey(installationId: number, owner?: string): string {
+  return owner ? `${installationId}:${owner}` : `${installationId}`;
+}
+
+async function cachedInstallationToken(
+  jwt: string,
+  installationId: number,
+  owner?: string
+): Promise<string> {
+  const key = cacheKey(installationId, owner);
+  const cached = tokenCache.get(key);
+
+  // Return cached token if still valid (with 10-minute safety buffer)
+  if (cached && cached.expiresAt > Date.now() + 10 * 60 * 1000) {
+    return cached.token;
+  }
+
+  // Ensure only one refresh happens per key at a time
+  if (cacheLock) {
+    await cacheLock;
+  }
+
+  // Check again after awaiting the lock (another request may have refreshed)
+  const recheck = tokenCache.get(key);
+  if (recheck && recheck.expiresAt > Date.now() + 10 * 60 * 1000) {
+    return recheck.token;
+  }
+
+  cacheLock = (async () => {
+    try {
+      const accessTokenRes = await fetch(
+        `https://api.github.com/app/installations/${installationId}/access_tokens`,
+        {
+          headers: {
+            Authorization: `Bearer ${jwt}`,
+            "X-GitHub-Api-Version": "2022-11-28",
+            Accept: "application/vnd.github+json",
+          },
+          method: "POST",
+        }
+      );
+
+      if (!accessTokenRes.ok) {
+        const body = await accessTokenRes.text();
+        throw new Error(`Failed to get access token: ${accessTokenRes.status} ${body}`);
+      }
+
+      const data = (await accessTokenRes.json()) as { token?: string; expires_at?: string };
+      if (!data.token) throw new Error("GitHub installation token missing from response");
+
+      // Parse expiration — GitHub returns ISO-8601 or we default to NOW + 50 min
+      let expiresAt: number;
+      if (data.expires_at) {
+        const parsed = Date.parse(data.expires_at);
+        expiresAt = Number.isNaN(parsed) ? Date.now() + TOKEN_CACHE_TTL_MS : parsed;
+      } else {
+        expiresAt = Date.now() + TOKEN_CACHE_TTL_MS;
+      }
+
+      tokenCache.set(key, {
+        token: data.token,
+        expiresAt,
+        installationId,
+        owner,
+      });
+    } finally {
+      cacheLock = null;
+    }
+  })();
+
+  await cacheLock;
+
+  const result = tokenCache.get(key);
+  if (!result) {
+    throw new Error("Token cache miss after refresh — this should not happen");
+  }
+  return result.token;
+}
+
 function buildGitHubAppJwt(): string {
   let privateKey = process.env.GITHUB_APP_PRIVATE_KEY?.replace(/\\n/g, "\n") || "";
   if (!privateKey) throw new Error("GITHUB_APP_PRIVATE_KEY not configured");
@@ -64,32 +163,10 @@ async function listInstallations(jwt: string): Promise<Installation[]> {
   return installations;
 }
 
-async function createInstallationToken(jwt: string, installationId: number): Promise<string> {
-  const accessTokenRes = await fetch(
-    `https://api.github.com/app/installations/${installationId}/access_tokens`,
-    {
-      headers: {
-        Authorization: `Bearer ${jwt}`,
-        "X-GitHub-Api-Version": "2022-11-28",
-        Accept: "application/vnd.github+json",
-      },
-      method: "POST",
-    }
-  );
-
-  if (!accessTokenRes.ok) {
-    const body = await accessTokenRes.text();
-    throw new Error(`Failed to get access token: ${accessTokenRes.status} ${body}`);
-  }
-
-  const data = (await accessTokenRes.json()) as { token?: string };
-  if (!data.token) throw new Error("GitHub installation token missing from response");
-  return data.token;
-}
-
 /**
  * Get an installation access token.
  * Prefer matching by owner login (org/user) when provided.
+ * Tokens are cached (~50 min TTL) to avoid hammering GitHub's installation API.
  */
 const getGitHubAppToken = async (options?: {
   owner?: string;
@@ -120,7 +197,7 @@ const getGitHubAppToken = async (options?: {
     installation = installations[0];
   }
 
-  return createInstallationToken(jwt, installation.id);
+  return cachedInstallationToken(jwt, installation.id, options?.owner ?? installation?.account?.login);
 };
 
 export { getGitHubAppToken };

@@ -5,6 +5,7 @@
 import { NextResponse } from "next/server";
 import { createFixPullRequest } from "@/lib/github";
 import { createServiceRoleClient } from "@/utils/supabase/service";
+import { createClient } from "@/utils/supabase/server";
 import { apiLimiter } from "@/lib/rate-limit";
 
 export async function POST(req: Request) {
@@ -28,10 +29,17 @@ export async function POST(req: Request) {
 
     const supabase = createServiceRoleClient();
 
-    // Get the vulnerability details
+    // Authenticate the requesting user
+    const authClient = await createClient();
+    const { data: { user: requestingUser } } = await authClient.auth.getUser();
+    if (!requestingUser) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    }
+
+    // Get the vulnerability details — fetch nested scan → repository → user_id + full_name
     const { data: vulnerability, error: vulnError } = await supabase
       .from("vulnerabilities")
-      .select("*, scan_id, scans(repository_id, scans(branch))")
+      .select("*, scans(id, repository_id, branch, repositories(user_id, full_name))")
       .eq("id", vulnerabilityId)
       .single();
 
@@ -39,15 +47,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Vulnerability not found" }, { status: 404 });
     }
 
-    // Get the repository info
-    const { data: repo } = await supabase
-      .from("repositories")
-      .select("full_name")
-      .eq("id", vulnerability.repository_id)
-      .single();
-
+    // Verify ownership: the requesting user must own the repository
+    const repo = (vulnerability.scans as any)?.repositories;
     if (!repo) {
-      return NextResponse.json({ error: "Repository not found" }, { status: 404 });
+      return NextResponse.json({ error: "Vulnerability has no repository" }, { status: 404 });
+    }
+
+    const repoUserId = repo.user_id;
+    if (repoUserId !== requestingUser.id) {
+      return NextResponse.json(
+        { error: "Unauthorized — you do not own this repository" },
+        { status: 403 }
+      );
     }
 
     const [owner, repoName] = repo.full_name.split("/");

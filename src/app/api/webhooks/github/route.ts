@@ -10,6 +10,13 @@ import { sendSlackNotification } from "@/lib/slack";
 import { Octokit } from "octokit";
 import { z } from "zod";
 
+const severityRank: Record<string, number> = {
+  Low: 0,
+  Medium: 1,
+  High: 2,
+  Critical: 3,
+};
+
 const GitHubPushSchema = z.object({
   ref: z.string(),
   repository: z.object({
@@ -77,7 +84,7 @@ export async function POST(req: Request) {
 
     const { data: dbRepo } = await supabase
       .from("repositories")
-      .select("id, full_name, profiles(id, full_name)")
+      .select("id, full_name, profiles(id, full_name, slack_webhook_url)")
       .eq("github_repo_id", githubRepoId)
       .single();
 
@@ -182,7 +189,10 @@ export async function POST(req: Request) {
     }
 
     if (vulnerabilitiesFound.length > 0) {
-      const highestSeverity = vulnerabilitiesFound[0].severity;
+      const highestSeverity = vulnerabilitiesFound.reduce(
+        (max, v) => severityRank[v.severity] > severityRank[max] ? v.severity : max,
+        vulnerabilitiesFound[0].severity
+      );
 
       for (const finding of vulnerabilitiesFound) {
         let prUrl: string | null = null;

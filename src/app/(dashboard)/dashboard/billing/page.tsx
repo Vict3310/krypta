@@ -1,59 +1,41 @@
 "use client";
 
-import { useState } from "react";
-import { Check, Shield, Zap } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Check, Shield, Zap, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { createClient } from "@/utils/supabase/client";
 
 export default function BillingPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentPlan, setCurrentPlan] = useState<"free" | "pro">("free");
-  const supabase = createClient();
+  const [loading, setLoading] = useState(true);
 
-  useState(() => {
+  useEffect(() => {
     async function loadPlan() {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("plan")
-          .eq("id", user.id)
-          .single();
-
-        if (profile) {
-          setCurrentPlan(profile.plan || "free");
-        }
+        const res = await fetch("/api/billing/subscription");
+        const data = await res.json();
+        setCurrentPlan(data.plan || "free");
       } catch {
         // ignore
+      } finally {
+        setLoading(false);
       }
     }
     loadPlan();
-  });
+  }, []);
 
   const handleUpgrade = async () => {
     setIsProcessing(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast.error("Please sign in to continue");
-        setIsProcessing(false);
-        return;
-      }
-
-      const response = await fetch("/api/billing/create-checkout", {
+      const response = await fetch("/api/billing/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: user.email,
-          plan: "pro",
-          amount: 29000, // ₦29,000/month in Naira base unit
-        }),
+        body: JSON.stringify({ planId: "pro_monthly" }),
       });
 
       if (!response.ok) {
-        throw new Error("Failed to create checkout session");
+        const data = await response.json();
+        throw new Error(data.error || "Failed to create checkout session");
       }
 
       const { authorizationUrl } = await response.json();
@@ -63,7 +45,7 @@ export default function BillingPage() {
     } catch (error) {
       console.error("Checkout error:", error);
       toast.error("Failed to start checkout", {
-        description: "Please try again or contact support.",
+        description: error instanceof Error ? error.message : "Please try again or contact support.",
       });
     } finally {
       setIsProcessing(false);
@@ -94,8 +76,8 @@ export default function BillingPage() {
             </p>
           </div>
           <div className="mb-6 sm:mb-8 flex items-baseline gap-1">
-            <span className="text-3xl sm:text-4xl font-bold text-sf-text-primary">$0</span>
-            <span className="text-xs sm:text-sm text-sf-text-tertiary">/month</span>
+            <span className="text-3xl sm:text-4xl font-bold text-sf-text-primary">GH₵ 0</span>
+            <span className="text-xs sm:text-sm text-sf-text-tertiary">/forever</span>
           </div>
           <ul className="space-y-2.5 sm:space-y-3 mb-6 sm:mb-8 flex-1">
             <li className="flex items-center gap-2.5 sm:gap-3 text-sm text-sf-text-secondary">
@@ -133,7 +115,7 @@ export default function BillingPage() {
             </p>
           </div>
           <div className="mb-6 sm:mb-8 flex items-baseline gap-1">
-            <span className="text-3xl sm:text-4xl font-bold text-sf-text-primary">$29</span>
+            <span className="text-3xl sm:text-4xl font-bold text-sf-text-primary">GH₵ 99</span>
             <span className="text-xs sm:text-sm text-sf-text-tertiary">/month</span>
           </div>
           <ul className="space-y-2.5 sm:space-y-3 mb-6 sm:mb-8 flex-1">
