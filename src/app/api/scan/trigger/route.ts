@@ -393,7 +393,7 @@ export async function POST(req: Request) {
 
           const email = profile?.email;
           const appUrl = process.env.NEXT_PUBLIC_SITE_URL;
-          if (email && process.env.RESEND_API_KEY && appUrl) {
+          if (email && process.env.SENDBYTE_API_KEY && appUrl) {
             const dashboardUrl = `${appUrl}/dashboard/scans`;
             await fetch(`${appUrl}/api/email/alert`, {
               method: "POST",

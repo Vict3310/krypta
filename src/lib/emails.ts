@@ -1,7 +1,9 @@
-import { Resend } from 'resend';
+import { SendByte } from '@sendbyte/node';
 
-// Initialize Resend
-const resend = new Resend(process.env.RESEND_API_KEY || 're_mock');
+const sendbyte = new SendByte(process.env.SENDBYTE_API_KEY || '');
+
+const FROM = 'Krypta Security <hello@krypta.dev>';
+const DASHBOARD_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://krypta.dev';
 
 export async function sendSecurityAlertEmail(params: {
   to: string;
@@ -9,27 +11,20 @@ export async function sendSecurityAlertEmail(params: {
   body: string;
 }) {
   try {
-    const { data, error } = await resend.emails.send({
-      from: 'Krypta Security <security@krypta.dev>',
-      to: [params.to],
+    await sendbyte.emails.send({
+      from: FROM,
+      to: params.to,
       subject: params.subject,
       html: `
-        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background-color: #000; color: #fff; padding: 40px; border-radius: 12px; border: 1px solid #333;">
-          <h2 style="color: #ef4444; margin-bottom: 20px;">Security Alert</h2>
-          <p style="color: #a1a1aa; font-size: 16px; line-height: 1.5; white-space: pre-wrap;">${params.body}</p>
+        <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#000;color:#fff;padding:40px;border-radius:12px;border:1px solid #333;">
+          <h2 style="color:#ef4444;margin-bottom:20px;">Security Alert</h2>
+          <p style="color:#a1a1aa;font-size:16px;line-height:1.5;white-space:pre-wrap;">${params.body}</p>
         </div>
       `,
     });
-
-    if (error) {
-      console.error("Resend API Error:", error);
-      return false;
-    }
-
-    console.log("Security email sent:", data);
     return true;
   } catch (error) {
-    console.error("Failed to send security email:", error);
+    console.error('[Email] sendSecurityAlertEmail failed:', (error as Error).message);
     return false;
   }
 }
@@ -40,39 +35,32 @@ export async function sendCriticalVulnerabilityEmail(
   vulnerabilityType: string
 ) {
   try {
-    const { data, error } = await resend.emails.send({
-      from: 'Krypta Security <security@krypta.dev>',
-      to: [userEmail],
-      subject: `🚨 Critical Vulnerability Detected in ${repoName}`,
+    await sendbyte.emails.send({
+      from: FROM,
+      to: userEmail,
+      subject: `Critical Vulnerability Detected in ${repoName}`,
       html: `
-        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background-color: #000; color: #fff; padding: 40px; border-radius: 12px; border: 1px solid #333;">
-          <h2 style="color: #ef4444; margin-bottom: 20px;">Critical Vulnerability Alert</h2>
-          <p style="color: #a1a1aa; font-size: 16px; line-height: 1.5;">
+        <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#000;color:#fff;padding:40px;border-radius:12px;border:1px solid #333;">
+          <h2 style="color:#ef4444;margin-bottom:20px;">Critical Vulnerability Alert</h2>
+          <p style="color:#a1a1aa;font-size:16px;line-height:1.5;">
             Krypta's AI Engine has detected a <strong>${vulnerabilityType}</strong> in your repository <strong>${repoName}</strong>.
           </p>
-          <p style="color: #a1a1aa; font-size: 16px; line-height: 1.5; margin-bottom: 30px;">
+          <p style="color:#a1a1aa;font-size:16px;line-height:1.5;margin-bottom:30px;">
             We have generated a plain-English explanation and automatically created a Pull Request with the fix.
           </p>
-          <a href="https://krypta.dev/dashboard/scans" style="display: inline-block; background-color: #10b981; color: #000; padding: 12px 24px; text-decoration: none; font-weight: bold; border-radius: 6px;">
+          <a href="${DASHBOARD_URL}/dashboard/scans" style="display:inline-block;background:#10b981;color:#000;padding:12px 24px;text-decoration:none;font-weight:bold;border-radius:6px;">
             Review &amp; Execute Fix
           </a>
-          <hr style="border-color: #333; margin-top: 40px; margin-bottom: 20px;" />
-          <p style="color: #666; font-size: 12px;">
-            You are receiving this email because you have Critical Vulnerability Alerts enabled in your Krypta settings.
+          <hr style="border-color:#333;margin-top:40px;margin-bottom:20px;" />
+          <p style="color:#666;font-size:12px;">
+            You are receiving this because you have Critical Vulnerability Alerts enabled in your Krypta settings.
           </p>
         </div>
       `,
     });
-
-    if (error) {
-      console.error("Resend API Error:", error);
-      return false;
-    }
-
-    console.log("Email sent:", data);
     return true;
   } catch (error) {
-    console.error("Failed to send email:", error);
+    console.error('[Email] sendCriticalVulnerabilityEmail failed:', (error as Error).message);
     return false;
   }
 }
