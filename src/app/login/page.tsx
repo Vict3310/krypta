@@ -2,13 +2,14 @@ import Link from "next/link";
 import { Zap, GitBranch, Mail, AlertCircle, CheckCircle2 } from "lucide-react";
 import { signInWithGitHub, signInWithMagicLink } from "./actions";
 
-export default function LoginPage({
+export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: { message?: string; error?: string };
+  searchParams: Promise<{ message?: string; error?: string }>;
 }) {
-  const message = searchParams?.message;
-  const error = searchParams?.error;
+  const params = await searchParams;
+  const message = params?.message;
+  const error = params?.error;
 
   const errorMessages: Record<string, string> = {
     github_failed: "GitHub sign-in failed. Please try again.",

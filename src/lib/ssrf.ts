@@ -134,6 +134,25 @@ export async function assertSafeTargetUrl(
   return { ok: true, url: parsed.toString() };
 }
 
+export async function resolveSafeTargetUrl(
+  baseUrl: string,
+  relativeOrAbsolute: string
+): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
+  const trimmedBase = baseUrl.trim();
+  if (!trimmedBase) {
+    return { ok: false, error: "Invalid base URL" };
+  }
+
+  let resolvedUrl: string;
+  try {
+    resolvedUrl = new URL(relativeOrAbsolute, trimmedBase).toString();
+  } catch {
+    return { ok: false, error: "Invalid request URL" };
+  }
+
+  return assertSafeTargetUrl(resolvedUrl);
+}
+
 function isBlockedIp(ip: string): boolean {
   const v = isIP(ip);
   if (v === 4) return isBlockedIpv4(ip);

@@ -1,5 +1,5 @@
 import { Octokit } from "octokit";
-import { createSign } from "node:crypto";
+import { createPrivateKey, createSign } from "node:crypto";
 
 type InstallationAccount = {
   login?: string;
@@ -109,10 +109,33 @@ async function cachedInstallationToken(
   return result.token;
 }
 
+function normalizeGitHubAppPrivateKey(raw: string): string {
+  const trimmed = raw.trim().replace(/^['"]|['"]$/g, "");
+  if (!trimmed) return "";
+
+  const withNewlines = trimmed.replace(/\\n/g, "\n").replace(/\r\n/g, "\n");
+  const headerMatch = withNewlines.match(/-----BEGIN [A-Z0-9 ]+-----/);
+  const footerMatch = withNewlines.match(/-----END [A-Z0-9 ]+-----/);
+
+  if (!headerMatch || !footerMatch) {
+    throw new Error(
+      "Invalid GITHUB_APP_PRIVATE_KEY format. Use the full RSA PEM private key from GitHub App settings."
+    );
+  }
+
+  const header = headerMatch[0];
+  const footer = footerMatch[0];
+  const body = withNewlines
+    .slice(header.length, withNewlines.lastIndexOf(footer))
+    .replace(/\s+/g, "\n")
+    .trim();
+
+  return `${header}\n${body}\n${footer}`;
+}
+
 function buildGitHubAppJwt(): string {
-  let privateKey = process.env.GITHUB_APP_PRIVATE_KEY?.replace(/\\n/g, "\n") || "";
+  let privateKey = normalizeGitHubAppPrivateKey(process.env.GITHUB_APP_PRIVATE_KEY || "");
   if (!privateKey) throw new Error("GITHUB_APP_PRIVATE_KEY not configured");
-  privateKey = privateKey.replace(/\r\n/g, "\n");
 
   if (
     privateKey.startsWith("SHA256:") ||
@@ -137,7 +160,9 @@ function buildGitHubAppJwt(): string {
   const sign = createSign("RSA-SHA256");
   sign.update(`${header}.${payload}`);
   sign.end();
-  const signature = sign.sign(privateKey, "base64url");
+
+  const keyObject = createPrivateKey({ key: privateKey, format: "pem" });
+  const signature = sign.sign(keyObject, "base64url");
 
   return `${header}.${payload}.${signature}`;
 }
