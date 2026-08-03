@@ -1,21 +1,48 @@
 /**
  * Scan Report Export API
- * Exports vulnerability data as JSON or HTML (for PDF printing)
+ * Exports vulnerability data as JSON or HTML (for PDF printing).
+ * Requires authentication and ownership of the scan's repository.
  */
 import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { createServiceRoleClient } from "@/utils/supabase/service";
+import { requireUser } from "@/lib/auth";
+import { escapeHtml } from "@/lib/ownership";
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireUser();
+    if ("error" in auth) return auth.error;
+
     const { id: scanId } = await params;
     const { searchParams } = new URL(_request.url);
     const format = searchParams.get("format") || "json";
 
     const supabase = createServiceRoleClient();
+
+    // Ownership check: the scan must belong to a repository owned by the user.
+    const { data: ownerRow } = await supabase
+      .from("scans")
+      .select("id, repositories(user_id)")
+      .eq("id", scanId)
+      .single();
+
+    if (!ownerRow) {
+      return NextResponse.json({ error: "Scan not found" }, { status: 404 });
+    }
+    const ownerRepos = ownerRow.repositories as
+      | { user_id: string }
+      | { user_id: string }[]
+      | undefined;
+    const repoOwner = Array.isArray(ownerRepos)
+      ? ownerRepos[0]?.user_id
+      : ownerRepos?.user_id;
+    if (repoOwner !== auth.user.id) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
+    }
 
     // Fetch scan and associated vulnerabilities
     const [{ data: scan, error: scanError }, { data: vulns, error: vulnError }] =
@@ -47,7 +74,7 @@ export async function GET(
       generatedAt: new Date().toISOString(),
       scan: {
         id: scan.id,
-        repository: (scan as any).repositories?.full_name || "Unknown",
+        repository: scan.repositories?.full_name || "Unknown",
         branch: scan.branch,
         commitSha: scan.commit_sha,
         status: scan.status,
@@ -56,13 +83,13 @@ export async function GET(
       },
       summary: {
         totalVulnerabilities: vulnerabilities.length,
-        critical: vulnerabilities.filter((v: any) => v.severity === "Critical").length,
-        high: vulnerabilities.filter((v: any) => v.severity === "High").length,
-        medium: vulnerabilities.filter((v: any) => v.severity === "Medium").length,
-        low: vulnerabilities.filter((v: any) => v.severity === "Low").length,
-        fixed: vulnerabilities.filter((v: any) => v.status === "fixed").length,
+        critical: vulnerabilities.filter((v) => v.severity === "Critical").length,
+        high: vulnerabilities.filter((v) => v.severity === "High").length,
+        medium: vulnerabilities.filter((v) => v.severity === "Medium").length,
+        low: vulnerabilities.filter((v) => v.severity === "Low").length,
+        fixed: vulnerabilities.filter((v) => v.status === "fixed").length,
       },
-      vulnerabilities: vulnerabilities.map((v: any) => ({
+      vulnerabilities: vulnerabilities.map((v) => ({
         id: v.id,
         type: v.vulnerability_type,
         severity: v.severity,
@@ -106,6 +133,8 @@ function generateHtmlReport(data: Record<string, unknown>): string {
   const summary = data.summary as Record<string, number>;
   const vulns = data.vulnerabilities as Array<Record<string, unknown>>;
 
+  const e = escapeHtml;
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -143,20 +172,20 @@ function generateHtmlReport(data: Record<string, unknown>): string {
     .status-fixed { background: #eff6ff; color: #2563eb; }
     .status-dismissed { background: #f3f4f6; color: #6b7280; }
     .status-snoozed { background: #fefce8; color: #ca8a04; }
-    pre { background: #1a1a2e; color: #e2e8f0; padding: 1rem; border-radius: 6px; overflow-x: auto; font-size: 0.85rem; margin: 0.5rem 0; }
+    pre { background: #1a1a2e; color: #e2e8f0; padding: 1rem; border-radius: 6px; overflow-x: auto; font-size: 0.85rem; margin: 0.5rem 0; white-space: pre-wrap; word-break: break-all; }
     .footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #e5e7eb; text-align: center; color: #9ca3af; font-size: 0.8rem; }
     @media print { body { padding: 1rem; } .no-print { display: none; } }
   </style>
 </head>
 <body>
   <h1>🔒 Krypta Security Report</h1>
-  <p class="meta">Generated: ${new Date(data.generatedAt as string).toLocaleString()}</p>
+  <p class="meta">Generated: ${e(new Date(data.generatedAt as string).toLocaleString())}</p>
 
   <div class="meta">
-    <strong>Repository:</strong> ${scan.full_name || "Unknown"}<br>
-    <strong>Branch:</strong> ${scan.branch || "main"}<br>
-    <strong>Commit:</strong> <code>${(scan.commitSha as string)?.slice(0, 8)}${(scan.commitSha as string)?.length > 8 ? "..." : ""}</code><br>
-    <strong>Status:</strong> ${scan.status}
+    <strong>Repository:</strong> ${e(scan.repository || "Unknown")}<br>
+    <strong>Branch:</strong> ${e(scan.branch || "main")}<br>
+    <strong>Commit:</strong> <code>${e((scan.commitSha as string)?.slice(0, 8))}${(scan.commitSha as string)?.length > 8 ? "..." : ""}</code><br>
+    <strong>Status:</strong> ${e(scan.status)}
   </div>
 
   <h2>Summary</h2>
@@ -183,23 +212,23 @@ function generateHtmlReport(data: Record<string, unknown>): string {
   ${vulns.map((v) => `
     <div class="vuln-card">
       <div class="vuln-header">
-        <span class="vuln-type">${v.vulnerability_type || "Unknown"}</span>
+        <span class="vuln-type">${e(v.type || "Unknown")}</span>
         <div>
-          <span class="badge severity-${v.severity}">${v.severity}</span>
-          <span class="status-badge status-${v.status}">${v.status}</span>
+          <span class="badge severity-${e(v.severity)}">${e(v.severity)}</span>
+          <span class="status-badge status-${e(v.status)}">${e(v.status)}</span>
         </div>
       </div>
-      <p>${v.explanation || "No description available."}</p>
-      ${v.filePath ? `<p style="margin-top:0.5rem; font-size:0.85rem; color:#666;">📁 ${v.filePath}</p>` : ""}
-      ${v.vulnerable_code ? `<pre><code>${v.vulnerable_code}</code></pre>` : ""}
-      ${v.fixed_code ? `<pre><code>✅ ${v.fixed_code}</code></pre>` : ""}
-      ${v.pr_url ? `<p style="font-size:0.85rem;">🔗 <a href="${v.pr_url}" target="_blank">Pull Request</a></p>` : ""}
+      <p>${e(v.explanation || "No description available.")}</p>
+      ${v.filePath ? `<p style="margin-top:0.5rem; font-size:0.85rem; color:#666;">📁 ${e(v.filePath)}</p>` : ""}
+      ${v.vulnerable_code ? `<pre><code>${e(v.vulnerable_code)}</code></pre>` : ""}
+      ${v.fixed_code ? `<pre><code>✅ ${e(v.fixed_code)}</code></pre>` : ""}
+      ${v.pr_url ? `<p style="font-size:0.85rem;">🔗 <a href="${e(v.pr_url)}" target="_blank" rel="noopener noreferrer">Pull Request</a></p>` : ""}
     </div>
   `).join("")}
 
   <div class="footer">
     <p>Generated by <strong>Krypta</strong> — AI-Powered Penetration Testing</p>
-    <p class="no-print" style="margin-top:0.5rem;"><button onclick="window.print()" style="padding:0.5rem 1rem; background:#e34a32; color:white; border:none; border-radius:6px; cursor:pointer;">🖨️ Print / Save as PDF</button></p>
+    <p class="no-print" style="margin-top:0.5rem; font-size:0.85rem; color:#666;">🖨️ Use your browser's Print / Save as PDF (Ctrl+P / ⌘P)</p>
   </div>
 </body>
 </html>`;

@@ -2,18 +2,11 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { ArrowLeft, ShieldAlert, CheckCircle2, Clock, X, Brain, Sparkles } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Clock, Brain } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/utils/supabase/client";
 import type { Scan, Vulnerability, VulnerabilityTriage, FixReview } from "@/lib/types";
 import { VulnerabilityGrid } from "./vulnerability-grid";
-
-interface VulnerabilityTimelineEvent {
-  status: string;
-  timestamp: string;
-  label: string;
-  icon: typeof CheckCircle2;
-}
 
 export default function ScanDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const [scan, setScan] = useState<Scan | null>(null);
@@ -64,7 +57,7 @@ export default function ScanDetailPage({ params }: { params: Promise<{ id: strin
         .eq("scan_id", id)
         .order("severity", { ascending: false });
 
-      console.log("[ScanDetail] Vulnerabilities:", (vulnData as any)?.length);
+      console.log("[ScanDetail] Vulnerabilities:", vulnData?.length);
 
       setVulnerabilities((vulnData as Vulnerability[]) ?? []);
       if (vulnData && vulnData.length > 0) setSelected(vulnData[0] as Vulnerability);
@@ -128,30 +121,6 @@ export default function ScanDetailPage({ params }: { params: Promise<{ id: strin
     };
   }, [params, selected?.id]);
 
-  const handleDismiss = async (vuln: Vulnerability) => {
-    const supabase = createClient();
-    await supabase.from("vulnerabilities").update({ status: "dismissed" }).eq("id", vuln.id);
-    setVulnerabilities((prev) =>
-      prev.map((v) => (v.id === vuln.id ? { ...v, status: "dismissed" } : v))
-    );
-    if (selected?.id === vuln.id)
-      setSelected((prev) => (prev ? { ...prev, status: "dismissed" } : null));
-    toast("Vulnerability dismissed", { description: "Marked as false positive." });
-  };
-
-  const handleSnooze = async (vuln: Vulnerability) => {
-    const supabase = createClient();
-    const snoozedUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-    await supabase
-      .from("vulnerabilities")
-      .update({ status: "snoozed", snoozed_until: snoozedUntil })
-      .eq("id", vuln.id);
-    setVulnerabilities((prev) =>
-      prev.map((v) => (v.id === vuln.id ? { ...v, status: "snoozed" } : v))
-    );
-    toast("Snoozed for 30 days", { description: "You won't be reminded about this until then." });
-  };
-
   const handleAiTriage = async () => {
     setAiTriageLoading(true);
     try {
@@ -204,7 +173,6 @@ export default function ScanDetailPage({ params }: { params: Promise<{ id: strin
   };
 
   const getTriageInfo = (vulnId: string) => aiTriage.find((t) => t.vulnerability_id === vulnId);
-  const getFixReview = (vulnId: string) => fixReviews[vulnId];
   const getPriorityColor = (score: number) => {
     if (score >= 80) return "text-red-600 bg-red-50 border-red-200";
     if (score >= 60) return "text-orange-600 bg-orange-50 border-orange-200";
@@ -217,47 +185,6 @@ export default function ScanDetailPage({ params }: { params: Promise<{ id: strin
     High: "bg-orange-50 text-orange-700 border-orange-200",
     Medium: "bg-amber-50 text-amber-700 border-amber-200",
     Low: "bg-blue-50 text-blue-700 border-blue-200",
-  };
-
-  // Build timeline from vulnerability status history
-  const buildTimeline = (vuln: Vulnerability): VulnerabilityTimelineEvent[] => {
-    const events: VulnerabilityTimelineEvent[] = [
-      {
-        status: "open",
-        timestamp: vuln.created_at,
-        label: "Detected",
-        icon: ShieldAlert,
-      },
-    ];
-
-    if (vuln.updated_at && vuln.updated_at !== vuln.created_at) {
-      events.push({
-        status: vuln.status,
-        timestamp: vuln.updated_at,
-        label: getStatusLabel(vuln.status),
-        icon: getStatusIcon(vuln.status),
-      });
-    }
-
-    return events;
-  };
-
-  const getStatusLabel = (status: string): string => {
-    const labels: Record<string, string> = {
-      fixed: "Fixed",
-      dismissed: "Dismissed",
-      snoozed: "Snoozed",
-    };
-    return labels[status] || status;
-  };
-
-  const getStatusIcon = (status: string): typeof ShieldAlert => {
-    const icons: Record<string, typeof CheckCircle2> = {
-      fixed: CheckCircle2,
-      dismissed: X,
-      snoozed: Clock,
-    };
-    return (icons[status] as typeof ShieldAlert) || ShieldAlert;
   };
 
   if (loading) {

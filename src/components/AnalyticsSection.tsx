@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
-import { Shield, AlertTriangle, TrendingDown, TrendingUp, CheckCircle2, Gauge, Target, BarChart3 } from "lucide-react";
+import { Shield, AlertTriangle, TrendingDown, CheckCircle2, Gauge, Target, BarChart3 } from "lucide-react";
 
 interface AnalyticsData {
   securityScore: number;
@@ -35,7 +35,7 @@ export default function AnalyticsSection() {
         const { data: { session } } = await createClient().auth.getSession();
         if (!session) return;
 
-        const response = await fetch(`/api/analytics?userId=${session.user.id}`);
+        const response = await fetch(`/api/analytics`);
         if (!response.ok) throw new Error("Failed to fetch analytics");
 
         const data = await response.json();

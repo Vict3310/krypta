@@ -7,11 +7,12 @@ import { createFixPullRequest } from "@/lib/github";
 import { createServiceRoleClient } from "@/utils/supabase/service";
 import { createClient } from "@/utils/supabase/server";
 import { apiLimiter } from "@/lib/rate-limit";
+import { getClientIp } from "@/lib/security";
 
 export async function POST(req: Request) {
   try {
     // Rate limit by IP
-    const ip = req.headers.get("x-forwarded-for") || "unknown";
+    const ip = getClientIp(req);
     const { success } = await apiLimiter(ip);
 
     if (!success) {
@@ -58,6 +59,15 @@ export async function POST(req: Request) {
       return NextResponse.json(
         { error: "Unauthorized — you do not own this repository" },
         { status: 403 }
+      );
+    }
+
+    // The file path must match the vulnerability's recorded path (don't let
+    // clients redirect fixes to arbitrary files).
+    if (vulnerability.file_path && filePath !== vulnerability.file_path) {
+      return NextResponse.json(
+        { error: "filePath does not match the vulnerability's file" },
+        { status: 400 }
       );
     }
 

@@ -1,15 +1,22 @@
 import { NextResponse } from "next/server";
-import { SendByte } from "@sendbyte/node";
-import { render } from "@react-email/render";
-import SecurityAlertEmail from "@/emails/security-alert";
+import { requireUser } from "@/lib/auth";
+import { apiLimiter } from "@/lib/rate-limit";
+import { sendSecurityAlert } from "@/lib/emails";
+import { getClientIp } from "@/lib/security";
 
-const FROM = "Krypta Security <hello@krypta.dev>";
-
+// POST /api/email/alert — Send a security alert email.
+// Protected: the recipient must be the authenticated user's own email address.
 export async function POST(req: Request) {
-  const apiKey = process.env.SENDBYTE_API_KEY;
+  const ip = getClientIp(req);
+  const { success: rateLimitOk } = await apiLimiter(ip);
+  if (!rateLimitOk) {
+    return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
+  }
 
-  if (!apiKey) {
-    console.error("[Email] SENDBYTE_API_KEY not configured");
+  const auth = await requireUser();
+  if ("error" in auth) return auth.error;
+
+  if (!process.env.SENDBYTE_API_KEY) {
     return NextResponse.json({ error: "Email service not configured" }, { status: 503 });
   }
 
@@ -21,22 +28,28 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const url = dashboardUrl || `${process.env.NEXT_PUBLIC_SITE_URL}/dashboard/scans`;
+    // No open relay — alerts may only be sent to the session user's own email.
+    if (String(to).trim().toLowerCase() !== (auth.user.email ?? "").trim().toLowerCase()) {
+      return NextResponse.json(
+        { error: "You can only send alerts to your own email address" },
+        { status: 403 }
+      );
+    }
 
-    const html = await render(
-      SecurityAlertEmail({ severity, vulnType, repoName, filePath: filePath || "N/A", description, scanDate: scanDate || new Date().toISOString(), dashboardUrl: url })
-    );
+    const url = dashboardUrl || `${process.env.NEXT_PUBLIC_SITE_URL || ""}/dashboard/scans`;
 
-    const sendbyte = new SendByte(apiKey);
-    const { id } = await sendbyte.emails.send({
-      from: FROM,
-      to,
-      subject: `[${severity}] ${vulnType} found in ${repoName}`,
-      html,
-      text: `Security Alert: ${severity} severity ${vulnType} found in ${repoName}\n\n${description}\n\nView in dashboard: ${url}`,
+    const messageId = await sendSecurityAlert({
+      to: String(to),
+      severity,
+      vulnType,
+      repoName,
+      filePath,
+      description,
+      scanDate,
+      dashboardUrl: url,
     });
 
-    return NextResponse.json({ messageId: id });
+    return NextResponse.json({ messageId });
   } catch (error) {
     console.error("[Email] Error:", (error as Error).message);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

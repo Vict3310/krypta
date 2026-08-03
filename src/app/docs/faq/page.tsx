@@ -67,8 +67,8 @@ const faqItems: FAQItem[] = [
     answer: (
       <div className="space-y-3">
         <p>
-          Navigate to the Repositories page in your dashboard and click "Add
-          Repository". You'll be prompted to authorize the Krypta GitHub app and
+          Navigate to the Repositories page in your dashboard and click &quot;Add
+          Repository&quot;. You&apos;ll be prompted to authorize the Krypta GitHub app and
           select which repositories to scan.
         </p>
         <div className="p-4 bg-black/5 rounded-lg">
@@ -141,8 +141,8 @@ const faqItems: FAQItem[] = [
     answer: (
       <div className="space-y-3">
         <p>
-          Go to Settings → Team, then click "Invite Member". Enter their email
-          and select a role. They'll receive an invitation link that expires
+          Go to Settings → Team, then click &quot;Invite Member&quot;. Enter their email
+          and select a role. They&apos;ll receive an invitation link that expires
           after 7 days.
         </p>
         <p>
@@ -168,7 +168,7 @@ const faqItems: FAQItem[] = [
       "Can I cancel my subscription at any time?",
     answer: (
       <p>
-        Yes, you can cancel your subscription at any time. You'll continue to
+        Yes, you can cancel your subscription at any time. You&apos;ll continue to
         have access to your plan features until the end of your current billing
         period.
       </p>
@@ -180,7 +180,7 @@ const faqItems: FAQItem[] = [
     answer: (
       <div className="space-y-3">
         <p>
-          Krypta provides a REST API for programmatic access. You'll need to
+          Krypta provides a REST API for programmatic access. You&apos;ll need to
           generate an API key from your dashboard Settings → API Keys.
         </p>
         <div className="p-4 bg-black rounded-lg rounded-tl-none rounded-tr-none">
@@ -270,7 +270,7 @@ export default function FAQPage() {
           Frequently Asked Questions
         </h1>
         <p className="text-lg text-sf-text-secondary max-w-2xl">
-          Find answers to common questions about Krypta. Can't find what you're
+          Find answers to common questions about Krypta. Can&apos;t find what you&apos;re
           looking for?{" "}
           <a href="/docs/contact" className="text-sf-accent hover:underline">
             Contact our support team
@@ -317,7 +317,7 @@ export default function FAQPage() {
               Still have questions?
             </h2>
             <p className="text-sf-text-secondary">
-              Can't find the answer you're lookinging for? Our support team is
+              Can&apos;t find the answer you&apos;re lookinging for? Our support team is
               here to help.
             </p>
             <a

@@ -1,7 +1,6 @@
 import {
   CheckCircle2,
   Code,
-  BookOpen,
   AlertTriangle,
   ArrowRight,
   ExternalLink,
@@ -112,32 +111,29 @@ export default function GitHubIntegrationPage() {
       <div className="space-y-6">
         <h2 className="text-2xl font-bold text-sf-text-primary">Setup Guide</h2>
         <div className="space-y-4">
-          {steps.map((step) => {
-            const Icon = step.icon;
-            return (
-              <div
-                key={step.number}
-                className="flex gap-4 p-6 bg-white rounded-xl border border-black/10"
-              >
-                <div className="shrink-0">
-                  <div className="h-10 w-10 rounded-full bg-sf-accent/10 flex items-center justify-center">
-                    <span className="text-sm font-bold text-sf-accent">
-                      {step.number}
-                    </span>
-                  </div>
-                </div>
-                <div className="flex-1 space-y-2">
-                  <div className="flex items-center gap-3">
-                    <h3 className="text-lg font-semibold text-sf-text-primary">
-                      {step.title}
-                    </h3>
-                    <CheckCircle2 className="h-5 w-5 text-green-600" />
-                  </div>
-                  <p className="text-sf-text-secondary">{step.description}</p>
+          {steps.map((step) => (
+            <div
+              key={step.number}
+              className="flex gap-4 p-6 bg-white rounded-xl border border-black/10"
+            >
+              <div className="shrink-0">
+                <div className="h-10 w-10 rounded-full bg-sf-accent/10 flex items-center justify-center">
+                  <span className="text-sm font-bold text-sf-accent">
+                    {step.number}
+                  </span>
                 </div>
               </div>
-            );
-          })}
+              <div className="flex-1 space-y-2">
+                <div className="flex items-center gap-3">
+                  <h3 className="text-lg font-semibold text-sf-text-primary">
+                    {step.title}
+                  </h3>
+                  <CheckCircle2 className="h-5 w-5 text-green-600" />
+                </div>
+                <p className="text-sf-text-secondary">{step.description}</p>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 

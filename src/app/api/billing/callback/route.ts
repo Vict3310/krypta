@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/utils/supabase/service";
+import { getAmount, type TierId, type BillingCycle, type CurrencyCode } from "@/lib/billing";
 
 const PAYSTACK_SECRET = process.env.PAYSTACK_SECRET_KEY;
 
@@ -41,11 +42,22 @@ export async function GET(req: Request) {
       );
     }
 
-    // Update user's plan in Supabase
+    // Update user's plan in Supabase — only when the charged amount matches the tier.
     const userId = data.data?.metadata?.user_id;
     if (userId) {
-      const db = createServiceRoleClient();
-      await db.from("profiles").update({ plan: "pro" }).eq("id", userId);
+      const metadata = (data.data?.metadata ?? {}) as Record<string, unknown>;
+      const tier: TierId = ["free", "pro", "team"].includes(metadata.tier as string) ? (metadata.tier as TierId) : "pro";
+      const cycle: BillingCycle = metadata.cycle === "yearly" ? "yearly" : "monthly";
+      const currency: CurrencyCode = metadata.currency === "GHS" ? "GHS" : "NGN";
+      const expectedAmount = getAmount(tier, cycle, currency);
+      if (Number(data.data?.amount) >= expectedAmount) {
+        const db = createServiceRoleClient();
+        await db.from("profiles").update({ plan: tier === "team" ? "pro" : tier }).eq("id", userId);
+      } else {
+        console.error(
+          `[Paystack] Callback amount mismatch: charged ${data.data?.amount}, expected ${expectedAmount}. Not upgrading.`
+        );
+      }
     }
 
     return NextResponse.redirect(

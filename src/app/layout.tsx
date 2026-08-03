@@ -3,6 +3,10 @@ import { Inter, Instrument_Serif } from "next/font/google";
 import { Geist_Mono } from "next/font/google";
 import "./globals.css";
 
+// Nonce-based CSP (set in src/proxy.ts) requires every page to be rendered
+// per-request so Next.js can inject the per-request nonce into its scripts.
+export const dynamic = "force-dynamic";
+
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],

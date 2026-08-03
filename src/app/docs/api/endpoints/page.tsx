@@ -40,7 +40,7 @@ export default function APIEndpointsPage() {
         {
           method: "POST",
           path: "/api/scans/trigger",
-          description: "Trigger a new scan on repository",
+          description: "Trigger a new scan on repository (requires API key or session; owner only)",
         },
         {
           method: "GET",
@@ -168,6 +168,19 @@ export default function APIEndpointsPage() {
         <code className="text-lg text-white font-mono">
           https://api.krypta.dev
         </code>
+        <div className="mt-4 pt-4 border-t border-white/10 space-y-2 text-sm text-sf-text-secondary">
+          <p>
+            <strong className="text-white">Authentication:</strong> All endpoints require a
+            Bearer API key — create one in your dashboard settings. Send it as{" "}
+            <code className="text-white font-mono">Authorization: Bearer krypta_sk_…</code>.
+          </p>
+          <p>
+            <strong className="text-white">CI/CD note:</strong>{" "}
+            <code className="text-white font-mono">POST /api/scans/trigger</code> accepts either
+            an API key or an authenticated browser session, and only the repository owner may
+            trigger a scan on a given repository.
+          </p>
+        </div>
       </div>
 
       {/* Endpoints */}

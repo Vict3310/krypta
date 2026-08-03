@@ -13,7 +13,8 @@ import crypto from "crypto";
 import { createServiceRoleClient } from "@/utils/supabase/service";
 import { z } from "zod";
 import { webhookLimiter } from "@/lib/rate-limit";
-import type { TierId, BillingCycle } from "@/lib/billing";
+import { getAmount, type TierId, type BillingCycle, type CurrencyCode } from "@/lib/billing";
+import { getClientIp } from "@/lib/security";
 
 const PAYSTACK_SECRET = process.env.PAYSTACK_SECRET_KEY;
 
@@ -39,7 +40,7 @@ function timingSafeEqual(left: string, right: string): boolean {
 
 export async function POST(req: Request) {
   // Rate limiting
-  const ip = req.headers.get("x-forwarded-for") || "webhook";
+  const ip = getClientIp(req);
   const result = await webhookLimiter(ip);
   if (!result.success) {
     return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
@@ -99,10 +100,24 @@ export async function POST(req: Request) {
 
       const userId = (userData as any).id;
       const metadata = (parsed.data.metadata ?? {}) as Record<string, unknown>;
-      const tier = (metadata.tier as TierId) || "pro";
-      const cycle = (metadata.cycle as BillingCycle) || "monthly";
+      const tier = ["free", "pro", "team"].includes(metadata.tier as string) ? (metadata.tier as TierId) : "pro";
+      const cycle = metadata.cycle === "yearly" ? "yearly" : "monthly";
+      const currency = metadata.currency === "GHS" ? "GHS" : "NGN";
       const isTrial = (metadata.is_trial as boolean) === true;
-      const trialDays = (metadata.trial_days as number) || (tier === "pro" ? 14 : 0);
+      const trialDays = Math.min(Math.max(Number(metadata.trial_days) || (tier === "pro" ? 14 : 0), 0), 365);
+
+      // Refuse to grant the plan if the charged amount doesn't match the tier.
+      const expectedAmount = getAmount(tier, cycle, currency);
+      if (Number(parsed.data.amount) < expectedAmount) {
+        console.error(
+          `[Paystack] charge.success amount mismatch for user ${userId}: charged ${parsed.data.amount}, expected ${expectedAmount} (${tier}/${cycle}/${currency}). Not upgrading.`
+        );
+        Sentry.captureMessage("Paystack charge.success amount mismatch — user not upgraded", {
+          level: "warning",
+          extra: { userId, charged: parsed.data.amount, expected: expectedAmount, tier, cycle, currency },
+        });
+        return NextResponse.json({ status: "success" });
+      }
 
       // Calculate billing period end (30 days for monthly, 365 for yearly)
       const periodDays = cycle === "yearly" ? 365 : 30;
@@ -185,8 +200,21 @@ export async function POST(req: Request) {
     // transaction.complete — Fallback for successful payments
     // ──────────────────────────────────────────────────────
     if (event === "transaction.complete") {
-      // Same logic as charge.success
+      // Same logic as charge.success — but only upgrade when the charged
+      // amount matches the Pro tier price (prevents minimum-payment upgrades).
       if (!customer) return NextResponse.json({ status: "success" });
+
+      const expectedAmount = getAmount("pro", "monthly", "NGN");
+      if (Number(parsed.data.amount) < expectedAmount) {
+        console.error(
+          `[Paystack] transaction.complete amount mismatch: charged ${parsed.data.amount}, expected ${expectedAmount}. Not upgrading.`
+        );
+        Sentry.captureMessage("Paystack transaction.complete amount mismatch — user not upgraded", {
+          level: "warning",
+          extra: { charged: parsed.data.amount, expected: expectedAmount },
+        });
+        return NextResponse.json({ status: "success" });
+      }
 
       const { data: userData } = await supabase.rpc('get_user_by_email', { p_email: customer });
       if (userData && (userData as any).id) {

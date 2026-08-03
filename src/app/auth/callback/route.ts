@@ -5,7 +5,16 @@ import { recordAuthSuccess } from "@/lib/security-monitor";
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/dashboard";
+  const rawNext = searchParams.get("next") ?? "/dashboard";
+
+  // Only allow same-origin relative paths (blocks open-redirect / path injection).
+  const next =
+    rawNext.startsWith("/") &&
+    !rawNext.startsWith("//") &&
+    !rawNext.includes("\\") &&
+    !/^https?:\/\//i.test(rawNext)
+      ? rawNext
+      : "/dashboard";
 
   if (!code) {
     console.error("[Auth Callback] No code parameter in callback URL");

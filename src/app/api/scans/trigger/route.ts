@@ -9,6 +9,8 @@ import { rateLimit } from "@/lib/rate-limit";
  */
 import { NextResponse } from "next/server";
 import { createFixPullRequest, getGitHubAppToken } from "@/lib/github";
+import { requireUser } from "@/lib/auth";
+import { validateApiKey } from "@/lib/api-auth";
 import { Octokit } from "octokit";
 
 // Rate limiting for CI/CD triggers
@@ -28,6 +30,21 @@ export async function POST(req: Request) {
       );
     }
 
+    // Authenticate: accept an API key (CI/CD) or a session cookie (dashboard).
+    let authUserId: string;
+    const authHeader = req.headers.get("authorization");
+    if (authHeader?.startsWith("Bearer ")) {
+      const apiAuth = await validateApiKey(req);
+      if ("error" in apiAuth) {
+        return NextResponse.json({ error: "Invalid API key" }, { status: 401 });
+      }
+      authUserId = apiAuth.user.id;
+    } else {
+      const sessionAuth = await requireUser();
+      if ("error" in sessionAuth) return sessionAuth.error;
+      authUserId = sessionAuth.user.id;
+    }
+
     // Rate limit: 1 trigger per repo per 60 seconds
     const now = Date.now();
     const lastTrigger = triggerCooldowns.get(repositoryId) ?? 0;
@@ -41,11 +58,12 @@ export async function POST(req: Request) {
 
     const supabase = createServiceRoleClient();
 
-    // Fetch repository
+    // Fetch repository — must belong to the authenticated user
     const { data: repo, error: repoError } = await supabase
       .from("repositories")
       .select("*")
       .eq("id", repositoryId)
+      .eq("user_id", authUserId)
       .single();
 
     if (repoError || !repo) {
@@ -92,7 +110,7 @@ export async function POST(req: Request) {
 
       const files = (commitData as any)?.files || [];
       let filesScanned = 0;
-      let vulnerabilitiesFound: Array<{
+      const vulnerabilitiesFound: Array<{
         filePath: string;
         vulnerabilityType: string;
         severity: string;

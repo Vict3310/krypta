@@ -55,8 +55,9 @@ export async function POST(request: Request) {
       message: "Repository verified via file upload",
     });
   } catch (err) {
+    console.error("[Verification] file-upload error:", err);
     return NextResponse.json(
-      { error: "Internal server error", details: (err as Error).message },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

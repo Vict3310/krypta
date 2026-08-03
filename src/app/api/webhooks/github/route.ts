@@ -7,6 +7,7 @@ import { createFixPullRequest, getGitHubAppToken } from "@/lib/github";
 import { createServiceRoleClient } from "@/utils/supabase/service";
 import { sendCriticalVulnerabilityEmail } from "@/lib/emails";
 import { sendSlackNotification } from "@/lib/slack";
+import { getClientIp } from "@/lib/security";
 import { Octokit } from "octokit";
 import { z } from "zod";
 
@@ -27,9 +28,32 @@ const GitHubPushSchema = z.object({
   commits: z.array(z.object({ id: z.string() })).optional(),
 });
 
+// Deduplicate webhook deliveries by GitHub's x-github-delivery header.
+// GitHub retries failed deliveries; without dedup a retry would create a
+// duplicate scan + duplicate vulnerability rows. In-memory with a TTL is
+// sufficient because retries arrive within moments of the original.
+const DEDUP_WINDOW_MS = 10 * 60 * 1000;
+const recentDeliveries = new Map<string, number>();
+
+function isDuplicateDelivery(deliveryId: string): boolean {
+  const now = Date.now();
+  // Prune stale entries
+  for (const [id, ts] of recentDeliveries) {
+    if (now - ts > DEDUP_WINDOW_MS) recentDeliveries.delete(id);
+  }
+  if (recentDeliveries.has(deliveryId)) return true;
+  recentDeliveries.set(deliveryId, now);
+  return false;
+}
+
 export async function POST(req: Request) {
+  // Deduplicate by delivery id (before any heavy work)
+  const deliveryId = req.headers.get("x-github-delivery");
+  if (deliveryId && isDuplicateDelivery(deliveryId)) {
+    return NextResponse.json({ message: "Duplicate delivery ignored" });
+  }
   // Rate limiting
-  const ip = req.headers.get("x-forwarded-for") || "webhook";
+  const ip = getClientIp(req);
   const result = await webhookLimiter(ip);
   if (!result.success) {
     return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
@@ -124,7 +148,7 @@ export async function POST(req: Request) {
     const githubToken = await getGitHubAppToken();
     const octokit = new Octokit({ auth: githubToken });
     let filesScanned = 0;
-    let vulnerabilitiesFound: Array<{
+    const vulnerabilitiesFound: Array<{
       filePath: string;
       vulnerabilityType: string;
       severity: string;

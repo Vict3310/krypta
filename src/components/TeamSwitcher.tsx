@@ -23,10 +23,6 @@ export function TeamSwitcher({ currentTeamId, onChange }: TeamSwitcherProps) {
   const [isOpen, setIsOpen] = useState(false);
   const supabase = createClient();
 
-  useEffect(() => {
-    loadTeams();
-  }, []);
-
   const loadTeams = useCallback(async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -49,6 +45,11 @@ export function TeamSwitcher({ currentTeamId, onChange }: TeamSwitcherProps) {
       setLoading(false);
     }
   }, [currentTeamId, onChange, supabase]);
+
+  useEffect(() => {
+    // Defer to avoid synchronous setState within the effect body
+    queueMicrotask(() => void loadTeams());
+  }, [loadTeams]);
 
   const currentTeam = teams.find(t => t.id === currentTeamId) || teams[0];
 

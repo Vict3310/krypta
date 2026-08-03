@@ -4,14 +4,21 @@
  */
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/utils/supabase/service";
+import { requireUser } from "@/lib/auth";
 
 export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId");
+    const auth = await requireUser();
+    if ("error" in auth) return auth.error;
 
-    if (!userId) {
-      return NextResponse.json({ error: "Missing userId" }, { status: 400 });
+    const { searchParams } = new URL(request.url);
+    const requestedUserId = searchParams.get("userId");
+
+    // The user id is always derived from the session. If a caller supplies a
+    // userId that doesn't match, reject it (prevents cross-user data access).
+    const userId = auth.user.id;
+    if (requestedUserId && requestedUserId !== userId) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
     const supabase = createServiceRoleClient();

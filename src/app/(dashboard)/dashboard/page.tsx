@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/utils/supabase/client";
 import Link from "next/link";
 import {
   Shield,
@@ -17,11 +16,18 @@ import {
   Check,
   AlertOctagon,
 } from "lucide-react";
-import type { Scan, Vulnerability } from "@/lib/types";
+import type { Scan } from "@/lib/types";
 import { useRouter } from "next/navigation";
 
 // Plan type
 type PlanId = "free" | "pro";
+
+interface RepoRow {
+  id: string;
+  full_name: string;
+  default_branch: string | null;
+  verification_status: string;
+}
 
 function SeverityBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
@@ -175,7 +181,7 @@ export default function DashboardPage() {
   });
   const [currentPlan, setCurrentPlan] = useState<PlanId>("free");
   const [recentScans, setRecentScans] = useState<Array<Scan & { repositories: { full_name: string } }>>([]);
-  const [connectedRepos, setConnectedRepos] = useState<any[]>([]);
+  const [connectedRepos, setConnectedRepos] = useState<RepoRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [firstName, setFirstName] = useState("there");
   const router = useRouter();
@@ -188,6 +194,7 @@ export default function DashboardPage() {
       const { createClient: createClientInner } = await import("@/utils/supabase/client");
       const supabase = createClientInner();
       console.log("[Dashboard] Client created (singleton)");
+      void router; // router is used for onboarding redirect
 
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       console.log("[Dashboard] Session loaded:", { userId: session?.user?.id, email: session?.user?.email, sessionError });
@@ -242,7 +249,7 @@ export default function DashboardPage() {
           setConnectedRepos([]);
         }
 
-        const repoIds = repos?.map((r: any) => r.id) ?? [];
+        const repoIds = repos?.map((r) => r.id) ?? [];
         console.log("[Dashboard] Repo IDs:", repoIds);
 
         // Try a direct query for the known scan ID to debug
@@ -270,8 +277,8 @@ export default function DashboardPage() {
         }
         if (scans) {
           // Enrich with repo names (fetched separately above)
-          const repoMap = new Map(repos?.map((r: any) => [r.id, r.full_name]));
-          setRecentScans((scans as any[]).map((s: any) => ({
+          const repoMap = new Map(repos?.map((r) => [r.id, r.full_name]));
+          setRecentScans(scans.map((s) => ({
             ...s,
             repositories: { full_name: repoMap.get(s.repository_id) || "Unknown" },
           })));
@@ -298,7 +305,7 @@ export default function DashboardPage() {
     }
 
     loadData();
-  }, []);
+  }, [router]);
 
   const isPro = currentPlan === "pro";
 
@@ -472,13 +479,13 @@ export default function DashboardPage() {
           <div className="rounded-[28px] border border-black/5 bg-white p-8 sm:p-12 text-center shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_14px_30px_-18px_rgba(35,36,39,0.25)]">
             <Shield className="h-10 w-10 sm:h-12 sm:w-12 text-sf-text-tertiary/40 mx-auto mb-3 sm:mb-4" />
             <p className="text-sm sm:text-base text-sf-text-primary font-medium mb-1 sm:mb-2">No scans yet</p>
-            <p className="text-xs sm:text-sm text-sf-text-secondary mb-4 sm:mb-6">Click "Scan Now" on a repository to start security scanning.</p>
+            <p className="text-xs sm:text-sm text-sf-text-secondary mb-4 sm:mb-6">Click &quot;Scan Now&quot; on a repository to start security scanning.</p>
           </div>
         ) : (
           <div className="rounded-[28px] border border-black/5 bg-white shadow-[0_1px_0_rgba(255,255,255,1)_inset,0_14px_30px_-18px_rgba(35,36,39,0.25)] overflow-hidden">
             <div className="divide-y divide-black/5">
               {recentScans.map((scan) => (
-                <ScanCard key={scan.id} scan={scan as any} />
+                <ScanCard key={scan.id} scan={scan} />
               ))}
             </div>
           </div>

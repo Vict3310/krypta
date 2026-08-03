@@ -67,7 +67,12 @@ export function aiModel(modelId?: string) {
  *
  * On failure from 0G, automatically retries with OpenAI.
  * On OpenAI failure, returns the error.
+ *
+ * Both calls are bounded by a timeout so a hung provider can't stall a
+ * serverless function (default 60s — below the 60s Vercel function limit).
  */
+const AI_CALL_TIMEOUT_MS = 60_000;
+
 export async function generateObjectWithFallback<Z extends z.ZodType>({
   schema,
   system,
@@ -88,6 +93,7 @@ export async function generateObjectWithFallback<Z extends z.ZodType>({
       schema,
       system,
       prompt,
+      signal: AbortSignal.timeout(AI_CALL_TIMEOUT_MS),
     });
   } catch (error) {
     console.warn(
@@ -105,6 +111,7 @@ export async function generateObjectWithFallback<Z extends z.ZodType>({
       schema,
       system,
       prompt,
+      signal: AbortSignal.timeout(AI_CALL_TIMEOUT_MS),
     });
   }
 }

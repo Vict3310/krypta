@@ -11,6 +11,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
+import Link from "next/link";
 
 interface OnboardingWizardProps {
   userId: string;
@@ -38,10 +39,6 @@ export default function OnboardingWizard({ userId }: OnboardingWizardProps) {
   });
   const supabase = createClient();
 
-  useEffect(() => {
-    checkOnboardingStatus();
-  }, []);
-
   const checkOnboardingStatus = useCallback(async () => {
     try {
       const { data: profile } = await supabase
@@ -63,6 +60,11 @@ export default function OnboardingWizard({ userId }: OnboardingWizardProps) {
       console.error("Error checking onboarding status:", error);
     }
   }, [userId, supabase]);
+
+  useEffect(() => {
+    // Defer to avoid synchronous setState within the effect body
+    queueMicrotask(() => void checkOnboardingStatus());
+  }, [checkOnboardingStatus]);
 
   const steps = [
     {
@@ -120,12 +122,12 @@ export default function OnboardingWizard({ userId }: OnboardingWizardProps) {
       <header className="bg-white border-b border-black/10">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4">
           <div className="flex items-center justify-between">
-            <a href="/" className="flex items-center gap-2">
+            <Link href="/" className="flex items-center gap-2">
               <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-sf-accent to-[#F05A3C] flex items-center justify-center">
                 <span className="text-white font-bold text-sm">K</span>
               </div>
               <span className="font-semibold text-sf-text-primary">Krypta</span>
-            </a>
+            </Link>
             <button
               onClick={() => (window.location.href = "/dashboard")}
               className="text-sm text-sf-text-secondary hover:text-sf-text-primary transition-colors"
@@ -190,12 +192,6 @@ export default function OnboardingWizard({ userId }: OnboardingWizardProps) {
           )}
           {currentStep === "github" && (
             <GitHubStep
-              onComplete={() =>
-                setOnboardingData((prev) => ({
-                  ...prev,
-                  githubConnected: true,
-                }))
-              }
               onNext={() => setCurrentStep("team")}
             />
           )}
@@ -289,7 +285,7 @@ function WelcomeStep({ onComplete }: { onComplete: () => void }) {
         onClick={onComplete}
         className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-sf-accent to-[#F05A3C] text-white rounded-lg font-medium hover:opacity-90 transition-opacity"
       >
-        Let's Get Started
+        Let&apos;s Get Started
         <ArrowRight className="h-4 w-4" />
       </button>
     </div>
@@ -297,14 +293,11 @@ function WelcomeStep({ onComplete }: { onComplete: () => void }) {
 }
 
 function GitHubStep({
-  onComplete,
   onNext,
 }: {
-  onComplete: () => void;
   onNext: () => void;
 }) {
   const [loading, setLoading] = useState(false);
-  const supabase = createClient();
 
   async function handleGitHubConnect() {
     setLoading(true);
@@ -366,7 +359,7 @@ function GitHubStep({
           onClick={onNext}
           className="w-full px-6 py-3 text-sm text-sf-text-secondary hover:text-sf-text-primary transition-colors"
         >
-          I'll do this later
+          I&apos;ll do this later
         </button>
       </div>
     </div>
@@ -382,7 +375,6 @@ function TeamStep({
 }) {
   const [teamName, setTeamName] = useState("");
   const [loading, setLoading] = useState(false);
-  const supabase = createClient();
 
   async function handleCreateTeam() {
     if (!teamName.trim()) return;
@@ -479,14 +471,14 @@ function TeamStep({
           onClick={onSkip}
           className="w-full px-6 py-3 text-sm text-sf-text-secondary hover:text-sf-text-primary transition-colors"
         >
-          Skip - I'll set this up later
+          Skip - I&apos;ll set this up later
         </button>
       </div>
     </div>
   );
 }
 
-function CustomizeStep({ onComplete, loading }: { onComplete: (settings: any) => void; loading?: boolean }) {
+function CustomizeStep({ onComplete, loading }: { onComplete: (settings: { minSeverity: string; enableAI: boolean; enableAutoPR: boolean }) => void; loading?: boolean }) {
   const [minSeverity, setMinSeverity] = useState<"Low" | "Medium" | "High" | "Critical">(
     "Medium"
   );
@@ -592,7 +584,7 @@ function CompleteStep() {
           <CheckCircle2 className="h-10 w-10 text-white" />
         </div>
         <h1 className="text-3xl font-bold text-sf-text-primary">
-          You're All Set!
+          You&apos;re All Set!
         </h1>
         <p className="text-lg text-sf-text-secondary max-w-md mx-auto">
           Krypta is now monitoring your repositories. Check your dashboard to

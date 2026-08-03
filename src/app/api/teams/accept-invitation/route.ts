@@ -40,6 +40,16 @@ export async function POST(request: Request) {
       );
     }
 
+    // The invitation is addressed to a specific email — only that user may accept it.
+    const invitedEmail = invitation.email?.trim().toLowerCase();
+    const currentEmail = sessionUser.email?.trim().toLowerCase();
+    if (invitedEmail && currentEmail && invitedEmail !== currentEmail) {
+      return NextResponse.json(
+        { error: "This invitation was sent to a different email address" },
+        { status: 403 }
+      );
+    }
+
     // Check if user is already a member
     const { data: existingMember } = await supabase
       .from("team_members")

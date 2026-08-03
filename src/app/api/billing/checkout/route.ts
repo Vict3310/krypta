@@ -43,7 +43,7 @@ export async function POST(req: Request) {
   const db = createServiceRoleClient();
 
   try {
-    const { planId, tier, billingCycle, currency, email, metadata } = await req.json();
+    const { planId, tier, billingCycle, currency, email } = await req.json();
 
     // Determine tier — support both legacy planId and new tier param
     let resolvedTier: TierId = "free";
@@ -117,7 +117,9 @@ export async function POST(req: Request) {
     // Create reference
     const reference = `krypta_${sessionUser.id}_${Date.now()}`;
 
-    // Build metadata
+    // Build metadata. IMPORTANT: never merge client-supplied metadata into the
+    // Paystack payload — the webhook trusts this to grant plans/trials, so it
+    // must only ever contain values computed server-side.
     const paystackMetadata: Record<string, unknown> = {
       user_id: sessionUser.id,
       tier: resolvedTier,
@@ -125,9 +127,6 @@ export async function POST(req: Request) {
       currency: resolvedCurrency,
       is_trial: isTrial,
     };
-    if (metadata) {
-      Object.assign(paystackMetadata, metadata);
-    }
 
     // Call Paystack API
     const paystackUrl = "https://api.paystack.co/transaction/initialize";

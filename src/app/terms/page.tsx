@@ -31,7 +31,7 @@ export default function TermsPage() {
             <section>
               <h2 className="text-2xl font-semibold text-sf-text-primary mb-4">2. Description of Service</h2>
               <p>
-                Krypta provides AI-powered security scanning services for GitHub repositories. You understand and agree that the Service is provided "AS-IS" and that Krypta assumes no responsibility for the timeliness, deletion, mis-delivery or failure to store any user communications or personalization settings.
+                Krypta provides AI-powered security scanning services for GitHub repositories. You understand and agree that the Service is provided &quot;AS-IS&quot; and that Krypta assumes no responsibility for the timeliness, deletion, mis-delivery or failure to store any user communications or personalization settings.
               </p>
             </section>
 
@@ -41,7 +41,7 @@ export default function TermsPage() {
                 You agree not to use the Service to:
               </p>
               <ul className="list-disc pl-5 mt-2 space-y-2">
-                <li>Upload, post, email, transmit or otherwise make available any content that is unlawful, harmful, threatening, abusive, harassing, tortious, defamatory, vulgar, obscene, libelous, invasive of another's privacy, hateful, or racially, ethnically or otherwise objectionable;</li>
+                <li>Upload, post, email, transmit or otherwise make available any content that is unlawful, harmful, threatening, abusive, harassing, tortious, defamatory, vulgar, obscene, libelous, invasive of another&apos;s privacy, hateful, or racially, ethnically or otherwise objectionable;</li>
                 <li>Impersonate any person or entity, or falsely state or otherwise misrepresent your affiliation with a person or entity;</li>
                 <li>Interfere with or disrupt the Service or servers or networks connected to the Service.</li>
               </ul>
@@ -57,7 +57,7 @@ export default function TermsPage() {
             <section>
               <h2 className="text-2xl font-semibold text-sf-text-primary mb-4">5. Disclaimer of Warranties</h2>
               <p>
-                You expressly understand and agree that your use of the service is at your sole risk. The service is provided on an "as is" and "as available" basis. Krypta expressly disclaims all warranties of any kind, whether express or implied.
+                You expressly understand and agree that your use of the service is at your sole risk. The service is provided on an &quot;as is&quot; and &quot;as available&quot; basis. Krypta expressly disclaims all warranties of any kind, whether express or implied.
               </p>
             </section>
           </div>

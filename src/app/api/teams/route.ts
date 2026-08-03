@@ -5,6 +5,7 @@
 import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { createServiceRoleClient } from "@/utils/supabase/service";
+import { createClient } from "@/utils/supabase/server";
 import { randomUUID } from "crypto";
 
 export async function POST(req: Request) {
@@ -27,12 +28,15 @@ export async function POST(req: Request) {
       );
     }
 
-    const supabase = createServiceRoleClient();
-    const { data: { user: sessionUser } } = await supabase.auth.getUser();
+    // Authenticate via the user's cookie session (service-role client can't see cookies)
+    const authClient = await createClient();
+    const { data: { user: sessionUser } } = await authClient.auth.getUser();
 
     if (!sessionUser) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const supabase = createServiceRoleClient();
 
     // Check if slug is already taken
     const { data: existing } = await supabase

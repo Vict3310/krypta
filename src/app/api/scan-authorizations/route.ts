@@ -85,8 +85,9 @@ export async function POST(request: Request) {
       expiresAt: expiresAt.toISOString(),
     });
   } catch (err) {
+    console.error("[Scan Authorizations] Error:", err);
     return NextResponse.json(
-      { error: "Internal server error", details: (err as Error).message },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

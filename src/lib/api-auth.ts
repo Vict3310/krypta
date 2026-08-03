@@ -1,15 +1,29 @@
 /**
  * REST API Authentication
- * Validates API keys (SHA-256 hashed) and returns the owning user id.
+ * Validates API keys (SHA-256 / HMAC-SHA256 hashed) and returns the owning user id.
+ *
+ * Hash scheme:
+ * - New keys (when API_KEY_HASH_SECRET is set): "v2:<hmac-sha256>" — keyed hashing
+ *   so a database leak alone is not enough to brute-force keys.
+ * - Legacy keys: plain SHA-256 hex (accepted for backward compatibility).
  */
-import { createHash } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import { createServiceRoleClient } from "@/utils/supabase/service";
 import * as Sentry from "@sentry/nextjs";
 import type { User } from "@supabase/supabase-js";
 import { safeEqual } from "@/lib/auth";
-import { recordApiAbuse, getRequestIp } from "@/lib/security-monitor";
+
+const V2_PREFIX = "v2:";
 
 export function hashApiKey(key: string): string {
+  const secret = process.env.API_KEY_HASH_SECRET;
+  if (secret) {
+    return `${V2_PREFIX}${createHmac("sha256", secret).update(key).digest("hex")}`;
+  }
+  return hashApiKeyLegacy(key);
+}
+
+function hashApiKeyLegacy(key: string): string {
   return createHash("sha256").update(key).digest("hex");
 }
 
@@ -28,17 +42,32 @@ export async function validateApiKey(request: Request): Promise<
     return { error: "Invalid authorization format", status: 401 };
   }
 
+  const secret = process.env.API_KEY_HASH_SECRET;
+  const legacyHash = hashApiKeyLegacy(token);
+  const v2Hash = secret
+    ? `${V2_PREFIX}${createHmac("sha256", secret).update(token).digest("hex")}`
+    : null;
+
   const supabase = createServiceRoleClient();
-  const keyHash = hashApiKey(token);
+
+  // Match against either the current (v2) or legacy hash so existing keys keep working.
+  const filter = v2Hash
+    ? `key_hash.eq.${legacyHash},key_hash.eq.${v2Hash}`
+    : `key_hash.eq.${legacyHash}`;
 
   const { data, error: apiKeyError } = await supabase
     .from("api_keys")
     .select("id, user_id, name, created_at, key_hash")
-    .eq("key_hash", keyHash)
+    .or(filter)
     .limit(1);
 
   const apiKey = data?.[0];
-  if (apiKeyError || !apiKey || !safeEqual(apiKey.key_hash, keyHash)) {
+  const matches =
+    apiKey &&
+    (safeEqual(apiKey.key_hash, legacyHash) ||
+      (v2Hash !== null && safeEqual(apiKey.key_hash, v2Hash)));
+
+  if (apiKeyError || !apiKey || !matches) {
     if (apiKeyError) Sentry.captureException(apiKeyError);
     return { error: "Invalid API key", status: 401 };
   }
@@ -47,17 +76,7 @@ export async function validateApiKey(request: Request): Promise<
   void supabase
     .from("api_keys")
     .update({ last_used_at: new Date().toISOString() })
-    .eq("key_hash", keyHash);
-
-  void recordApiAbuse({
-    userId: apiKey.user_id,
-    apiKeyId: apiKey.id,
-    ipAddress: getRequestIp(request),
-    metadata: {
-      requestPath: new URL(request.url).pathname,
-      requestCount: 1,
-    },
-  });
+    .eq("id", apiKey.id);
 
   return {
     user: { id: apiKey.user_id },

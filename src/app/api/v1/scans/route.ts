@@ -6,6 +6,7 @@ import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { validateApiKey } from "@/lib/api-auth";
 import { createServiceRoleClient } from "@/utils/supabase/service";
+import { runRepositoryScan } from "@/lib/scan-repository";
 
 // GET /api/v1/scans - List all scans
 export async function GET(request: Request) {
@@ -118,8 +119,8 @@ export async function POST(request: Request) {
 
     if (scanError) throw scanError;
 
-    // Trigger async scan (in production, use a worker queue)
-    triggerScan(repo.id, branch, commit_sha);
+    // Actually run the scan (fire-and-forget; the shared pipeline updates status)
+    void runRepositoryScan(repo.id, scan.id, { branch, commitSha: commit_sha });
 
     return NextResponse.json(
       {
@@ -140,60 +141,4 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-}
-
-// GET /api/v1/scans/:id - Get scan details
-export async function GET_STATIC(request: Request, { params }: { params: { id: string } }) {
-  try {
-    const auth = await validateApiKey(request);
-    if ("error" in auth) {
-      return NextResponse.json(
-        { error: auth.error },
-        { status: auth.status }
-      );
-    }
-
-    const supabase = createServiceRoleClient();
-
-    const { data: scan, error } = await supabase
-      .from("scans")
-      .select(`
-        *,
-        repositories!inner(full_name, default_branch, user_id),
-        scan_results(*)
-      `)
-      .eq("id", params.id)
-      .eq("repositories.user_id", auth.user.id)
-      .single();
-
-    if (error || !scan) {
-      return NextResponse.json(
-        { error: "Scan not found" },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json({ data: scan });
-  } catch (error) {
-    Sentry.captureException(error);
-    console.error("Get scan error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch scan" },
-      { status: 500 }
-    );
-  }
-}
-
-// TODO: replace with a proper job queue (Upstash QStash, Bull, etc.) before production
-async function triggerScan(
-  repositoryId: string,
-  branch: string,
-  _commitSha?: string | null
-) {
-  const supabase = createServiceRoleClient();
-  await supabase
-    .from("scans")
-    .update({ status: "scanning" })
-    .eq("repository_id", repositoryId)
-    .eq("branch", branch);
 }

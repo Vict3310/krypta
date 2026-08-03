@@ -59,7 +59,7 @@ function getLimiter(): InMemoryLimiter | Ratelimit {
   return redisLimiter || memoryLimiter;
 }
 
-export async function rateLimit(key: string, maxRequests: number, window: string) {
+export async function rateLimit(key: string, maxRequests: number, _window: string) {
   const limiter = getLimiter();
 
   if (limiter instanceof Ratelimit) {

@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useSyncExternalStore } from "react";
 import {
-  Zap, Shield, Sparkles, Terminal, Code2, ArrowRight,
-  GitBranch, CheckCircle2, BarChart3, Clock, ChevronDown,
+  Zap, Shield, Sparkles, Terminal, ArrowRight,
+  CheckCircle2, BarChart3, Clock, ChevronDown,
   ChevronUp, Search, GitPullRequest, FileCode
 } from "lucide-react";
 import { TerminalWidget } from "@/components/TerminalWidget";
@@ -67,6 +67,7 @@ function Navigation() {
               </Link>
               <div className="relative group">
                 {avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={avatarUrl}
                     alt="Profile"
@@ -444,12 +445,12 @@ function Pricing() {
           Simple, <span className="relative inline-block"><span className="relative text-sf-accent">transparent</span></span> pricing
         </h2>
         <p className="mt-4 text-lg text-[#55575c] max-w-2xl mx-auto">
-          Start free. Scale when you're ready. No hidden fees.
+          Start free. Scale when you&apos;re ready. No hidden fees.
         </p>
       </div>
 
       <div className="grid gap-6 md:grid-cols-3 lg:gap-8">
-        {plans.map((plan, i) => (
+        {plans.map((plan) => (
           <div
             key={plan.name}
             data-reveal
@@ -512,8 +513,11 @@ function FAQItem({ question, answer }: { question: string; answer: string }) {
 }
 
 function FAQ() {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
 
   const faqs = [
     { question: "How is Krypta different from Burp Suite or OWASP ZAP?", answer: "Burp Suite and OWASP ZAP match known attack signatures. Krypta uses AI to actively exploit vulnerabilities like a real hacker would. It doesn't just look for patterns — it proves they're real by attacking. If Krypta gets in, your site genuinely has that vulnerability. Zero false positives." },

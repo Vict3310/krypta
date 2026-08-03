@@ -1,17 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/utils/supabase/client";
 import {
   CheckCircle2,
-  XCircle,
   Star,
   Shield,
   Zap,
   Users,
   FileText,
-  Clock,
-  AlertTriangle,
   Loader2,
   CreditCard,
   Building2,
@@ -22,7 +18,6 @@ import {
   formatPrice,
   type TierId,
   type BillingCycle,
-  CURRENCIES,
 } from "@/lib/billing";
 
 type PaymentMethod = "card" | "transfer" | "ussd" | "bank_transfer";
@@ -443,7 +438,7 @@ export default function PricingPage() {
               <div>
                 <h4 className="text-sm font-semibold text-sf-text-primary">Secured by Paystack</h4>
                 <p className="text-xs text-sf-text-secondary">
-                  All payments processed securely via Paystack — Nigeria's trusted payment platform.
+                  All payments processed securely via Paystack — Nigeria&apos;s trusted payment platform.
                 </p>
               </div>
             </div>

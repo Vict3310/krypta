@@ -2,7 +2,6 @@
 
 import { GitBranch, Plus, Search, ShieldCheck, AlertCircle } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
-import Link from "next/link";
 import { useState, useEffect } from "react";
 
 interface Repo {
@@ -18,7 +17,7 @@ export default function NewRepositoryPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [githubUsername, setGithubUsername] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [userMetadata, setUserMetadata] = useState<any>(null);
+  const [userMetadata, setUserMetadata] = useState<Record<string, unknown> | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectError, setConnectError] = useState<string | null>(null);
 
@@ -43,8 +42,8 @@ export default function NewRepositoryPage() {
         });
 
         // Try to get GitHub username from metadata
-        const meta = session.user.user_metadata as any;
-        const githubLogin = meta?.preferred_username || meta?.user_name || meta?.login || meta?.github_username;
+        const meta = session.user.user_metadata as Record<string, unknown>;
+        const githubLogin = (meta?.preferred_username || meta?.user_name || meta?.login || meta?.github_username) as string | undefined;
 
         if (githubLogin) {
           setGithubUsername(githubLogin);
@@ -64,7 +63,7 @@ export default function NewRepositoryPage() {
           .from("repositories")
           .select("github_repo_id")
           .eq("user_id", session.user.id);
-        console.log("[Page] DB-connected repos:", dbRepos?.map((r: any) => r.github_repo_id) || []);
+        console.log("[Page] DB-connected repos:", dbRepos?.map((r) => r.github_repo_id) || []);
 
         // Load GitHub repos
         if (githubLogin) {
@@ -78,7 +77,7 @@ export default function NewRepositoryPage() {
           console.log("[Page] GitHub API response:", data);
 
           // Map GitHub API fields to our interface
-          const mapped = (data.repos || []).map((r: any) => ({
+          const mapped = (data.repos || []).map((r: { id: number; full_name: string; default_branch: string }) => ({
             githubRepoId: r.id,
             name: r.full_name,
             defaultBranch: r.default_branch,

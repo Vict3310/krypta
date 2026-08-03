@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { User, Key, Bell, Save, Trash2, CheckCircle2, Shield, Settings2, LogOut } from "lucide-react";
+import { User, Key, Bell, Save, CheckCircle2, Shield, Settings2, LogOut } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/utils/supabase/client";
 import type { Repository, RepositorySettings } from "@/lib/types";
@@ -121,7 +121,7 @@ export default function SettingsPage() {
         description: "Your preferences have been updated.",
         icon: <CheckCircle2 className="h-4 w-4 text-sf-accent" />,
       });
-    } catch (error) {
+    } catch {
       toast.error("Failed to save settings", {
         description: "Please try again.",
       });
@@ -167,7 +167,7 @@ export default function SettingsPage() {
         description: "Your repository scanning rules have been updated.",
         icon: <CheckCircle2 className="h-4 w-4 text-sf-accent" />,
       });
-    } catch (error) {
+    } catch {
       toast.error("Failed to save rules", {
         description: "Please try again.",
       });
@@ -196,7 +196,7 @@ export default function SettingsPage() {
           : "Slack integration removed.",
         icon: <CheckCircle2 className="h-4 w-4 text-sf-accent" />,
       });
-    } catch (error) {
+    } catch {
       toast.error("Failed to save Slack settings", {
         description: "Please try again.",
       });
@@ -213,7 +213,7 @@ export default function SettingsPage() {
         description: "You have been signed out successfully.",
       });
       window.location.href = "/login";
-    } catch (error) {
+    } catch {
       toast.error("Failed to sign out", {
         description: "Please try again.",
       });

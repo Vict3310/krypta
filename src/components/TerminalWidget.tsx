@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { Terminal } from "lucide-react";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import { createClient } from "@/utils/supabase/client";
 
 export function TerminalWidget() {
@@ -11,7 +12,7 @@ export function TerminalWidget() {
   ]);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState(false);
-  const channelRef = useRef<any>(null);
+  const channelRef = useRef<RealtimeChannel | null>(null);
 
   useEffect(() => {
     // Safety timeout: if Supabase doesn't connect in 3s, show static content
@@ -20,70 +21,63 @@ export function TerminalWidget() {
       setConnected(true); // prevent spinner
     }, 3000);
 
-    try {
-      const supabase = createClient();
-      const channel = supabase
-        .channel("realtime_terminal")
-        .on(
-          "postgres_changes",
-          { event: "INSERT", schema: "public", table: "scans" },
-          (payload) => {
+    const supabase = createClient();
+    const channel: RealtimeChannel = supabase
+      .channel("realtime_terminal")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "scans" },
+        (payload) => {
+          setLogs((prev) => [
+            ...prev,
+            `[SYSTEM] NEW SCAN ON ${payload.new.branch || "main"}`,
+          ]);
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "vulnerabilities" },
+        (payload) => {
+          setLogs((prev) => [
+            ...prev,
+            `${payload.new.severity.toUpperCase()}: ${payload.new.vulnerability_type}`,
+          ]);
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "vulnerabilities" },
+        (payload) => {
+          if (payload.new.status === "fixed") {
             setLogs((prev) => [
               ...prev,
-              `[SYSTEM] NEW SCAN ON ${payload.new.branch || "main"}`,
+              `FIX APPLIED: Patch committed via PR`,
             ]);
           }
-        )
-        .on(
-          "postgres_changes",
-          { event: "INSERT", schema: "public", table: "vulnerabilities" },
-          (payload) => {
-            setLogs((prev) => [
-              ...prev,
-              `${payload.new.severity.toUpperCase()}: ${payload.new.vulnerability_type}`,
-            ]);
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "scans" },
+        (payload) => {
+          if (payload.new.status === "clean") {
+            setLogs((prev) => [...prev, `SCAN COMPLETE: Repository is secure.`]);
+          } else if (payload.new.status === "vulnerable") {
+            setLogs((prev) => [...prev, `SCAN COMPLETE: Review required.`]);
           }
-        )
-        .on(
-          "postgres_changes",
-          { event: "UPDATE", schema: "public", table: "vulnerabilities" },
-          (payload) => {
-            if (payload.new.status === "fixed") {
-              setLogs((prev) => [
-                ...prev,
-                `FIX APPLIED: Patch committed via PR`,
-              ]);
-            }
-          }
-        )
-        .on(
-          "postgres_changes",
-          { event: "UPDATE", schema: "public", table: "scans" },
-          (payload) => {
-            if (payload.new.status === "clean") {
-              setLogs((prev) => [...prev, `SCAN COMPLETE: Repository is secure.`]);
-            } else if (payload.new.status === "vulnerable") {
-              setLogs((prev) => [...prev, `SCAN COMPLETE: Review required.`]);
-            }
-          }
-        )
-        .subscribe((status) => {
-          if (status === "SUBSCRIBED" || status === "CHANNEL_ERROR") {
-            setConnected(true);
-            clearTimeout(timeout);
-          }
-        });
+        }
+      )
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED" || status === "CHANNEL_ERROR") {
+          setConnected(true);
+          clearTimeout(timeout);
+        }
+      });
 
-      channelRef.current = channel;
-    } catch {
-      setError(true);
-      setConnected(true);
-      clearTimeout(timeout);
-    }
+    channelRef.current = channel;
 
     return () => {
       if (channelRef.current) {
-        const supabase = createClient();
         supabase.removeChannel(channelRef.current);
       }
     };

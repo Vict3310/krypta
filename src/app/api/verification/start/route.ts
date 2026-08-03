@@ -68,8 +68,9 @@ export async function POST(request: Request) {
           : `Create a file at ${targetUrl}/.well-known/krypta-verification.txt with content "${result.token}"`,
     });
   } catch (err) {
+    console.error("[Verification] start error:", err);
     return NextResponse.json(
-      { error: "Internal server error", details: (err as Error).message },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

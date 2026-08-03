@@ -2,6 +2,7 @@ import { createServiceRoleClient } from "@/utils/supabase/service";
 import { getClientIp } from "@/lib/security";
 import { sendSlackNotification } from "@/lib/slack";
 import { sendSecurityAlertEmail } from "@/lib/emails";
+import { Redis } from "@upstash/redis";
 
 export type SecuritySeverity = "low" | "medium" | "high" | "critical";
 export type SecurityEventType =
@@ -45,11 +46,65 @@ interface SecurityActionRecord {
 
 const alertCooldownMs = new Map<string, number>();
 const alertSummaryCounts = new Map<string, number>();
-const apiUsageBuckets = new Map<string, Array<number>>();
-const authFailureBuckets = new Map<string, Array<number>>();
-const exploitDomainBuckets = new Map<string, Array<number>>();
-const resourceAccessBuckets = new Map<string, Array<number>>();
-const verificationFailureBuckets = new Map<string, Array<number>>();
+
+// ─────────────────────────────────────────────────────────────
+// Durable event buckets
+//
+// Abuse/anomaly detection windows are backed by Redis when Upstash
+// is configured (survives restarts and multi-instance deployments)
+// and fall back to in-memory state locally. This prevents attackers
+// from evading detection by rotating instances.
+// ─────────────────────────────────────────────────────────────
+let redis: Redis | null | undefined;
+
+function getRedis(): Redis | null {
+  if (redis === undefined) {
+    redis =
+      process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
+        ? new Redis({
+            url: process.env.UPSTASH_REDIS_REST_URL,
+            token: process.env.UPSTASH_REDIS_REST_TOKEN,
+          })
+        : null;
+  }
+  return redis;
+}
+
+const memoryBuckets = new Map<string, number[]>();
+
+/** Add a timestamp to a bucket and return the pruned history within the window. */
+async function addBucketEvent(
+  key: string,
+  ts: number,
+  windowMs: number
+): Promise<number[]> {
+  const r = getRedis();
+  if (r) {
+    const zkey = `krypta:bucket:${key}`;
+    // Unique member so simultaneous events don't overwrite each other.
+    await r.zadd(zkey, { score: ts, member: `${ts}:${Math.random().toString(36).slice(2)}` });
+    await r.zremrangebyscore(zkey, 0, ts - windowMs);
+    const members = await r.zrange(zkey, 0, -1);
+    return members.map((m) => Number(String(m).split(":")[0]));
+  }
+  const arr = (memoryBuckets.get(key) ?? []).filter((t) => t >= ts - windowMs);
+  arr.push(ts);
+  memoryBuckets.set(key, arr);
+  return arr;
+}
+
+/** Read the pruned history of a bucket (without adding a new event). */
+async function getBucketHistory(key: string, windowMs: number): Promise<number[]> {
+  const r = getRedis();
+  const cutoff = Date.now() - windowMs;
+  if (r) {
+    const zkey = `krypta:bucket:${key}`;
+    await r.zremrangebyscore(zkey, 0, cutoff);
+    const members = await r.zrange(zkey, 0, -1);
+    return members.map((m) => Number(String(m).split(":")[0]));
+  }
+  return (memoryBuckets.get(key) ?? []).filter((t) => t >= cutoff);
+}
 
 function normalizeIp(ipAddress?: string | null): string {
   if (!ipAddress) return "unknown";
@@ -58,11 +113,6 @@ function normalizeIp(ipAddress?: string | null): string {
 
 function nowMs(): number {
   return Date.now();
-}
-
-function pruneWindow(values: Array<number>, windowMs: number): Array<number> {
-  const cutoff = nowMs() - windowMs;
-  return values.filter((value) => value >= cutoff);
 }
 
 async function insertSecurityEvent(payload: MonitorPayload): Promise<SecurityEventRecord | null> {
@@ -229,9 +279,7 @@ export async function recordAuthAnomaly(params: {
   const normalizedIp = normalizeIp(params.ipAddress);
   const now = nowMs();
   const bucketKey = `${normalizedIp}:${params.userId || "anon"}`;
-  const history = authFailureBuckets.get(bucketKey) || [];
-  const nextHistory = pruneWindow([...history, now], 5 * 60_000);
-  authFailureBuckets.set(bucketKey, nextHistory);
+  const nextHistory = await addBucketEvent(`auth:${bucketKey}`, now, 5 * 60_000);
 
   const failureCount = nextHistory.length;
   let severity: SecuritySeverity = "low";
@@ -278,10 +326,8 @@ export async function recordApiAbuse(params: {
 }) {
   const normalizedIp = normalizeIp(params.ipAddress);
   const key = `${params.userId || "anon"}:${params.apiKeyId || "anon"}`;
-  const history = apiUsageBuckets.get(key) || [];
   const now = nowMs();
-  const nextHistory = pruneWindow([...history, now], 60 * 60_000);
-  apiUsageBuckets.set(key, nextHistory);
+  const nextHistory = await addBucketEvent(`api:${key}`, now, 60 * 60_000);
 
   const average = nextHistory.length > 1 ? nextHistory.length / 2 : nextHistory.length;
   const currentVolume = (params.metadata?.requestCount as number | undefined) || 1;
@@ -318,10 +364,7 @@ export async function recordExploitAbuse(params: {
 }) {
   const normalizedIp = normalizeIp(params.ipAddress);
   const key = `${params.userId || "anon"}:${normalizedIp}`;
-  const history = exploitDomainBuckets.get(key) || [];
-  const now = nowMs();
-  const nextHistory = pruneWindow([...history, now], 10 * 60_000);
-  exploitDomainBuckets.set(key, nextHistory);
+  await addBucketEvent(`exploit:${key}`, nowMs(), 10 * 60_000);
 
   const distinctDomains = Number(params.metadata?.distinctDomains || 1);
   const severity = distinctDomains > 10 ? "high" : "medium";
@@ -355,10 +398,8 @@ export async function recordPrivilegeAnomaly(params: {
 }) {
   const normalizedIp = normalizeIp(params.ipAddress);
   const key = `${params.userId || "anon"}:${normalizedIp}`;
-  const history = resourceAccessBuckets.get(key) || [];
   const now = nowMs();
-  const nextHistory = pruneWindow([...history, now], 5 * 60_000);
-  resourceAccessBuckets.set(key, nextHistory);
+  const nextHistory = await addBucketEvent(`priv:${key}`, now, 5 * 60_000);
 
   const severity = nextHistory.length > 5 ? "high" : "medium";
 
@@ -391,10 +432,8 @@ export async function recordWebhookAnomaly(params: {
 }) {
   const normalizedIp = normalizeIp(params.ipAddress);
   const key = `${params.eventType || "webhook"}:${normalizedIp}`;
-  const history = verificationFailureBuckets.get(key) || [];
   const now = nowMs();
-  const nextHistory = pruneWindow([...history, now], 5 * 60_000);
-  verificationFailureBuckets.set(key, nextHistory);
+  const nextHistory = await addBucketEvent(`webhook:${key}`, now, 5 * 60_000);
 
   const failureCount = nextHistory.length;
   const severity = failureCount > 5 ? "high" : "medium";
@@ -631,9 +670,7 @@ export async function revokeApiKey(apiKeyId: string, reason: string, userId?: st
 export async function recordAuthFailure(ipAddress?: string | null, userId?: string | null) {
   const normalizedIp = normalizeIp(ipAddress);
   const bucketKey = `${normalizedIp}:${userId || "anon"}`;
-  const history = authFailureBuckets.get(bucketKey) || [];
-  const nextHistory = pruneWindow([...history, nowMs()], 5 * 60_000);
-  authFailureBuckets.set(bucketKey, nextHistory);
+  const nextHistory = await addBucketEvent(`auth:${bucketKey}`, nowMs(), 5 * 60_000);
 
   const failureCount = nextHistory.length;
   if (failureCount > 10) {
@@ -649,8 +686,7 @@ export async function recordAuthFailure(ipAddress?: string | null, userId?: stri
 export async function recordAuthSuccess(userId?: string | null, ipAddress?: string | null, metadata?: Record<string, unknown>) {
   const normalizedIp = normalizeIp(ipAddress);
   const bucketKey = `${normalizedIp}:${userId || "anon"}`;
-  const history = authFailureBuckets.get(bucketKey) || [];
-  const nextHistory = pruneWindow(history, 5 * 60_000);
+  const nextHistory = await getBucketHistory(`auth:${bucketKey}`, 5 * 60_000);
   if (nextHistory.length > 0) {
     await recordAuthAnomaly({
       eventType: "login_success_after_failures",

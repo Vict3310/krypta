@@ -90,7 +90,7 @@ export async function POST(request: Request) {
   } catch (e) {
     console.error("[API /github/connect] Unexpected error:", e);
     return NextResponse.json(
-      { error: "Internal server error", details: (e as Error).message },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

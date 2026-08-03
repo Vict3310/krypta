@@ -5,7 +5,20 @@
 import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { validateApiKey } from "@/lib/api-auth";
+import { requireAdminUser } from "@/lib/security-monitor";
 import { createServiceRoleClient } from "@/utils/supabase/service";
+
+/**
+ * SSO configuration is a global (owner-level) setting. Only admins may read
+ * or modify it — a regular API-key user must never be able to reconfigure
+ * (or enforce) enterprise SSO.
+ */
+async function requireSsoAdmin(authUserId: string): Promise<Response | null> {
+  if (!(await requireAdminUser(authUserId))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  return null;
+}
 
 // GET /api/v1/sso - Get SSO configuration
 export async function GET(request: Request) {
@@ -17,6 +30,9 @@ export async function GET(request: Request) {
         { status: auth.status }
       );
     }
+
+    const forbidden = await requireSsoAdmin(auth.user.id);
+    if (forbidden) return forbidden;
 
     const supabase = createServiceRoleClient();
 
@@ -55,6 +71,9 @@ export async function POST(request: Request) {
         { status: auth.status }
       );
     }
+
+    const forbidden = await requireSsoAdmin(auth.user.id);
+    if (forbidden) return forbidden;
 
     const body = await request.json();
     const {
@@ -144,53 +163,6 @@ export async function POST(request: Request) {
   }
 }
 
-// POST /api/v1/sso/metadata - Generate SAML metadata
-export async function POST_METADATA(request: Request) {
-  try {
-    const auth = await validateApiKey(request);
-    if ("error" in auth) {
-      return NextResponse.json(
-        { error: auth.error },
-        { status: auth.status }
-      );
-    }
-
-    const supabase = createServiceRoleClient();
-
-    const { data: ssoConfig } = await supabase
-      .from("sso_configurations")
-      .select("*")
-      .eq("team_id", "owner")
-      .single();
-
-    if (!ssoConfig) {
-      return NextResponse.json(
-        { error: "SSO not configured" },
-        { status: 404 }
-      );
-    }
-
-    // Generate SAML metadata XML
-    const metadataXml = generateSAMLMetadata({
-      entity_id: ssoConfig.provider_config.entity_id ||
-        `${process.env.NEXT_PUBLIC_APP_URL}/saml/metadata`,
-      callback_url: ssoConfig.callback_url,
-      certificate: ssoConfig.certificate_data?.certificate,
-    });
-
-    const response = NextResponse.json({ metadata: metadataXml });
-    response.headers.set("Content-Type", "application/saml-metadata+xml");
-    return response;
-  } catch (error) {
-    Sentry.captureException(error);
-    console.error("Generate metadata error:", error);
-    return NextResponse.json(
-      { error: "Failed to generate metadata" },
-      { status: 500 }
-    );
-  }
-}
-
 // PATCH /api/v1/sso/enforce - Enable/disable SSO enforcement
 export async function PATCH(request: Request) {
   try {
@@ -201,6 +173,9 @@ export async function PATCH(request: Request) {
         { status: auth.status }
       );
     }
+
+    const forbidden = await requireSsoAdmin(auth.user.id);
+    if (forbidden) return forbidden;
 
     const body = await request.json();
     const { enforced } = body;

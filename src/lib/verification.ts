@@ -11,6 +11,16 @@
 import { createServiceRoleClient } from "@/utils/supabase/service";
 import { resolveTxt } from "node:dns/promises";
 import crypto from "crypto";
+import { assertSafeTargetUrl } from "@/lib/ssrf";
+
+/** Validate that a user-supplied target hostname is a safe public target. */
+async function assertSafeVerificationTarget(targetUrl: string): Promise<{ ok: boolean; error?: string }> {
+  const result = await assertSafeTargetUrl(targetUrl);
+  if (!result.ok) {
+    return { ok: false, error: result.error };
+  }
+  return { ok: true };
+}
 
 // ============================================================
 // Token Generation
@@ -152,6 +162,12 @@ export async function verifyViaDnsTxt(
     return { success: false, error: "Invalid URL format" };
   }
 
+  // Refuse to verify internal/private targets
+  const targetCheck = await assertSafeVerificationTarget(targetUrl);
+  if (!targetCheck.ok) {
+    return { success: false, error: targetCheck.error || "Target host is not allowed" };
+  }
+
   // DNS TXT query: _krypta-verify.{domain}
   const queryName = `_krypta-verify.${domain}`;
 
@@ -237,16 +253,25 @@ export async function verifyViaFileUpload(
     return { success: false, error: "Invalid URL format" };
   }
 
+  // Refuse to fetch internal/private targets (SSRF)
+  const targetCheck = await assertSafeVerificationTarget(targetUrl);
+  if (!targetCheck.ok) {
+    return { success: false, error: targetCheck.error || "Target host is not allowed" };
+  }
+
   const verificationUrl = `https://${domain}/.well-known/krypta-verification.txt`;
 
   try {
     const response = await fetch(verificationUrl, {
       method: "GET",
       headers: { "User-Agent": "Krypta-Verification/1.0" },
+      // Do not follow redirects — a redirect to a private/internal IP would
+      // otherwise be an SSRF vector. Only accept a direct 200 response.
+      redirect: "manual",
       signal: AbortSignal.timeout(10000), // 10 second timeout
     });
 
-    if (!response.ok) {
+    if (!response.ok || response.status >= 300) {
       return {
         success: false,
         error: `Could not fetch ${verificationUrl} (HTTP ${response.status}). Make sure the file is publicly accessible.`,

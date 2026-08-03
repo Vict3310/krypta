@@ -34,18 +34,8 @@ const nextConfig: NextConfig = {
             key: "X-XSS-Protection",
             value: "1; mode=block",
           },
-          {
-            key: "Content-Security-Policy",
-            value: [
-              "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vercel.live https://static.cloudflareinsights.com",
-              "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-              "font-src 'self' https://fonts.gstatic.com",
-              "img-src 'self' data: blob: https:",
-              "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.github.com https://api.paystack.co https://sentry.io https://*.sentry.io https://cloudflareinsights.com",
-              "frame-ancestors 'none'",
-            ].join("; "),
-          },
+          // Content-Security-Policy is set per-request in src/proxy.ts
+          // (nonce-based — see proxy for the full policy).
         ],
       },
       // CORS headers for webhook endpoints — restricted to known providers only
